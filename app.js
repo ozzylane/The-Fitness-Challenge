@@ -1,13 +1,15 @@
-/* The Push-Up Challenge — local multi-participant tracker.
+/* The Push-Up Challenge — local, 365-day progressive group tracker.
  * State lives in localStorage under STORAGE_KEY. No network calls. */
 
 const STORAGE_KEY = "pushup-challenge:v1";
 const CHART_DAYS = 30;
+const TOTAL_DAYS = 365;
 
 const DEFAULT_STATE = () => ({
-  people: [],                 // [{ id, name }]
-  entries: [],                // [{ id, personId, date: "YYYY-MM-DD", reps }]
-  goal: { type: "team-total", amount: 10000, start: todayStr() },
+  people: [],   // [{ id, name }]
+  entries: [],  // [{ id, personId, date: "YYYY-MM-DD", reps }]
+  // Weekly plan: week 1 asks weekBase reps/person/day; every later week adds weekStep.
+  config: { start: todayStr(), weekBase: 20, weekStep: 5 },
 });
 
 let state = load();
@@ -19,7 +21,15 @@ function load() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_STATE();
     const parsed = JSON.parse(raw);
-    return { ...DEFAULT_STATE(), ...parsed, goal: { ...DEFAULT_STATE().goal, ...(parsed.goal || {}) } };
+    const base = DEFAULT_STATE();
+    const merged = { ...base, ...parsed };
+    merged.config = { ...base.config, ...(parsed.config || {}) };
+    // Migrate the old { goal: { start } } shape.
+    if (!parsed.config && parsed.goal && parsed.goal.start) {
+      merged.config.start = parsed.goal.start;
+    }
+    delete merged.goal;
+    return merged;
   } catch (err) {
     console.warn("Could not read saved data, starting fresh.", err);
     return DEFAULT_STATE();
@@ -34,7 +44,7 @@ function save() {
   }
 }
 
-/* ---------- helpers ---------- */
+/* ---------- date / challenge math ---------- */
 
 function todayStr(d = new Date()) {
   const tz = d.getTimezoneOffset() * 60000;
@@ -45,10 +55,32 @@ function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
-function personName(id) {
-  const p = state.people.find((x) => x.id === id);
-  return p ? p.name : "(removed)";
+/** 1 on the start date, 0 or negative before it, > TOTAL_DAYS once finished. */
+function challengeDay(dateStr = todayStr()) {
+  const start = new Date(state.config.start + "T00:00:00");
+  const now = new Date(dateStr + "T00:00:00");
+  return Math.floor((now - start) / 86400000) + 1;
 }
+
+function challengeWeek(day = challengeDay()) {
+  return Math.max(1, Math.ceil(day / 7));
+}
+
+/** Push-ups per person per day for a given challenge week. */
+function dailyTarget(week = challengeWeek()) {
+  return state.config.weekBase + (Math.max(1, week) - 1) * state.config.weekStep;
+}
+
+function isActive(day = challengeDay()) {
+  return day >= 1 && day <= TOTAL_DAYS;
+}
+
+/** Per-person target for right now, or null if the challenge isn't running. */
+function targetNow() {
+  return isActive() ? dailyTarget() : null;
+}
+
+/* ---------- aggregate helpers ---------- */
 
 function repsFor(predicate) {
   return state.entries.filter(predicate).reduce((sum, e) => sum + e.reps, 0);
@@ -58,13 +90,8 @@ function totalForPerson(id) {
   return repsFor((e) => e.personId === id);
 }
 
-function bestDayForPerson(id) {
-  const byDay = {};
-  for (const e of state.entries) {
-    if (e.personId !== id) continue;
-    byDay[e.date] = (byDay[e.date] || 0) + e.reps;
-  }
-  return Object.values(byDay).reduce((m, v) => Math.max(m, v), 0);
+function todayForPerson(id) {
+  return repsFor((e) => e.personId === id && e.date === todayStr());
 }
 
 function streakForPerson(id) {
@@ -74,7 +101,6 @@ function streakForPerson(id) {
   if (days.size === 0) return 0;
   let streak = 0;
   const cursor = new Date();
-  // Allow the streak to be "alive" if they logged today or yesterday.
   if (!days.has(todayStr(cursor))) cursor.setDate(cursor.getDate() - 1);
   while (days.has(todayStr(cursor))) {
     streak += 1;
@@ -83,23 +109,64 @@ function streakForPerson(id) {
   return streak;
 }
 
-function daysIn() {
-  const start = new Date(state.goal.start + "T00:00:00");
-  const now = new Date(todayStr() + "T00:00:00");
-  const diff = Math.floor((now - start) / 86400000) + 1;
-  return Math.max(1, diff);
+function personName(id) {
+  const p = state.people.find((x) => x.id === id);
+  return p ? p.name : "(removed)";
 }
 
 /* ---------- rendering ---------- */
 
 function render() {
   renderPeopleSelects();
+  renderBanner();
   renderTeamStats();
-  renderGoal();
+  renderTodayProgress();
   renderLeaderboard();
   renderChart();
   renderPeopleList();
   renderHistory();
+}
+
+function renderBanner() {
+  const el = document.getElementById("banner");
+  const day = challengeDay();
+
+  if (day < 1) {
+    const starts = 1 - day;
+    el.className = "banner pre";
+    el.innerHTML = `
+      <div class="banner-top">Challenge starts in ${starts} day${starts === 1 ? "" : "s"}</div>
+      <div class="banner-mission">Week 1 mission &middot; <strong>${fmt(dailyTarget(1))}</strong> push-ups per day</div>
+      <div class="year-bar"><span style="width:0%"></span></div>
+      <div class="banner-sub">Day 1 is ${state.config.start}</div>`;
+    return;
+  }
+
+  if (day > TOTAL_DAYS) {
+    el.className = "banner done";
+    el.innerHTML = `
+      <div class="banner-top">&#127937; Challenge complete &middot; ${TOTAL_DAYS} / ${TOTAL_DAYS} days</div>
+      <div class="banner-mission"><strong>${fmt(repsFor(() => true))}</strong> total push-ups logged by the team</div>
+      <div class="year-bar"><span style="width:100%"></span></div>`;
+    return;
+  }
+
+  const week = challengeWeek(day);
+  const target = dailyTarget(week);
+  const left = TOTAL_DAYS - day;
+  const pct = (day / TOTAL_DAYS) * 100;
+  const dayOfWeek = ((day - 1) % 7) + 1;
+  const nextTarget = dailyTarget(week + 1);
+
+  el.className = "banner";
+  el.innerHTML = `
+    <div class="banner-top">
+      <span class="day-num">Day ${day}</span><span class="day-of"> of ${TOTAL_DAYS}</span>
+      <span class="banner-count">${left} day${left === 1 ? "" : "s"} left</span>
+    </div>
+    <div class="banner-mission">Week ${week} mission &middot; <strong>${fmt(target)}</strong> push-ups per person, per day</div>
+    <div class="year-bar"><span style="width:${pct.toFixed(2)}%"></span></div>
+    <div class="banner-sub">Day ${dayOfWeek} of 7 this week &middot; next week steps up to ${fmt(nextTarget)}/day</div>`;
 }
 
 function renderPeopleSelects() {
@@ -125,36 +192,35 @@ function renderPeopleSelects() {
 function renderTeamStats() {
   document.getElementById("stat-team-total").textContent = fmt(repsFor(() => true));
   document.getElementById("stat-participants").textContent = state.people.length;
-  document.getElementById("stat-today-total").textContent = fmt(
-    repsFor((e) => e.date === todayStr())
-  );
-  document.getElementById("stat-days").textContent = daysIn();
+  document.getElementById("stat-today-total").textContent = fmt(repsFor((e) => e.date === todayStr()));
+
+  const target = targetNow();
+  const onTargetEl = document.getElementById("stat-ontarget");
+  if (target == null || state.people.length === 0) {
+    onTargetEl.textContent = "—";
+  } else {
+    const hit = state.people.filter((p) => todayForPerson(p.id) >= target).length;
+    onTargetEl.textContent = `${hit}/${state.people.length}`;
+  }
 }
 
-function renderGoal() {
-  const { type, amount } = state.goal;
+function renderTodayProgress() {
+  const day = challengeDay();
   const people = Math.max(1, state.people.length);
-  let current = 0;
-  let target = amount;
-  let label = "";
+  const per = dailyTarget();
+  const goalToday = per * people;
+  const doneToday = repsFor((e) => e.date === todayStr());
+  const detail = document.getElementById("goal-detail");
+  const fill = document.getElementById("progress-fill");
 
-  if (type === "team-total") {
-    current = repsFor(() => true);
-    target = amount;
-    label = `${fmt(current)} / ${fmt(target)} team reps`;
-  } else if (type === "per-person-total") {
-    target = amount * people;
-    current = repsFor(() => true);
-    label = `${fmt(current)} / ${fmt(target)} reps (${fmt(amount)} each × ${people})`;
-  } else if (type === "per-person-daily") {
-    target = amount * people * daysIn();
-    current = repsFor(() => true);
-    label = `${fmt(current)} / ${fmt(target)} reps (${fmt(amount)}/person/day × ${daysIn()} days)`;
+  if (!isActive(day)) {
+    detail.textContent = day < 1 ? "Challenge hasn't started yet" : "Challenge complete";
+    fill.style.width = day < 1 ? "0%" : "100%";
+    return;
   }
-
-  const pct = target > 0 ? Math.min(100, (current / target) * 100) : 0;
-  document.getElementById("goal-detail").textContent = label;
-  document.getElementById("progress-fill").style.width = pct.toFixed(1) + "%";
+  const pct = goalToday > 0 ? Math.min(100, (doneToday / goalToday) * 100) : 0;
+  detail.textContent = `${fmt(doneToday)} / ${fmt(goalToday)} reps today (${fmt(per)}/person × ${people})`;
+  fill.style.width = pct.toFixed(1) + "%";
 }
 
 function renderLeaderboard() {
@@ -163,11 +229,12 @@ function renderLeaderboard() {
     el.innerHTML = `<li class="empty">No participants yet.</li>`;
     return;
   }
+  const target = targetNow();
   const rows = state.people
     .map((p) => ({
       name: p.name,
       total: totalForPerson(p.id),
-      today: repsFor((e) => e.personId === p.id && e.date === todayStr()),
+      today: todayForPerson(p.id),
       streak: streakForPerson(p.id),
     }))
     .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
@@ -179,15 +246,21 @@ function renderLeaderboard() {
     .map((r, i) => {
       const barPct = (r.total / max) * 100;
       const rank = medals[i] || `${i + 1}.`;
+      const hit = target != null && r.today >= target;
+      let meta;
+      if (target != null) {
+        meta = `${hit ? "✓ " : ""}${fmt(r.today)}/${fmt(target)} today`;
+      } else {
+        meta = r.today ? `+${fmt(r.today)} today` : "";
+      }
+      if (r.streak > 1) meta += ` · ${r.streak}d streak`;
       return `
-      <li class="lb-row">
+      <li class="lb-row${hit ? " hit" : ""}">
         <span class="lb-rank">${rank}</span>
         <span class="lb-name">${escapeHtml(r.name)}</span>
         <span class="lb-bar"><span style="width:${barPct}%"></span></span>
         <span class="lb-total">${fmt(r.total)}</span>
-        <span class="lb-meta muted">${r.today ? "+" + fmt(r.today) + " today" : ""}${
-        r.streak > 1 ? ` · ${r.streak}d streak` : ""
-      }</span>
+        <span class="lb-meta muted">${meta}</span>
       </li>`;
     })
     .join("");
@@ -207,9 +280,14 @@ function renderChart() {
     const reps = repsFor((e) => e.date === ds && (who === "__all__" || e.personId === who));
     days.push({ ds, reps });
   }
-  const max = Math.max(1, ...days.map((d) => d.reps));
+
+  const per = targetNow();
+  const target =
+    per == null ? null : who === "__all__" ? per * Math.max(1, state.people.length) : per;
+  const max = Math.max(1, target || 0, ...days.map((d) => d.reps));
+
   const chart = document.getElementById("chart");
-  chart.innerHTML = days
+  const bars = days
     .map((d) => {
       const h = (d.reps / max) * 100;
       const cls =
@@ -219,6 +297,15 @@ function renderChart() {
       )}"></div>`;
     })
     .join("");
+  let line = "";
+  if (target != null) {
+    const bottomPct = (target / max) * 100;
+    const labelBelow = bottomPct > 88 ? " label-below" : "";
+    line = `<div class="chart-target${labelBelow}" style="bottom:${bottomPct.toFixed(
+      1
+    )}%"><span>target ${fmt(target)}/day</span></div>`;
+  }
+  chart.innerHTML = bars + line;
 }
 
 function renderPeopleList() {
@@ -235,9 +322,7 @@ function renderPeopleList() {
       <li>
         <span class="h-date">${escapeHtml(p.name)}</span>
         <span class="h-reps">${fmt(totalForPerson(p.id))}</span>
-        <button class="h-del" data-person="${p.id}" title="Remove ${escapeHtml(
-        p.name
-      )}">✕</button>
+        <button class="h-del" data-person="${p.id}" title="Remove ${escapeHtml(p.name)}">✕</button>
       </li>`
     )
     .join("");
@@ -271,7 +356,7 @@ function renderHistory() {
 /* ---------- utils ---------- */
 
 function fmt(n) {
-  return n.toLocaleString();
+  return Number(n).toLocaleString();
 }
 
 function escapeHtml(s) {
@@ -352,7 +437,9 @@ function importJson(file) {
         throw new Error("File doesn't look like a Push-Up Challenge export.");
       }
       if (!confirm("Replace all current data with the imported file?")) return;
-      state = { ...DEFAULT_STATE(), ...data, goal: { ...DEFAULT_STATE().goal, ...(data.goal || {}) } };
+      const base = DEFAULT_STATE();
+      state = { ...base, ...data, config: { ...base.config, ...(data.config || {}) } };
+      delete state.goal;
       save();
       render();
     } catch (err) {
@@ -405,20 +492,39 @@ document.getElementById("history").addEventListener("click", (e) => {
 document.getElementById("chart-who").addEventListener("change", renderChart);
 document.getElementById("history-who").addEventListener("change", renderHistory);
 
-/* goal dialog */
+/* settings dialog */
 const goalDialog = document.getElementById("goal-dialog");
+const cfgStart = document.getElementById("cfg-start");
+const cfgBase = document.getElementById("cfg-base");
+const cfgStep = document.getElementById("cfg-step");
+const cfgPreview = document.getElementById("cfg-preview");
+
+function updateCfgPreview() {
+  const b = Math.max(1, Math.floor(Number(cfgBase.value)) || 0);
+  const s = Math.max(0, Math.floor(Number(cfgStep.value)) || 0);
+  const wk = (n) => fmt(b + (n - 1) * s);
+  cfgPreview.textContent = `Week 1: ${wk(1)}/day · Week 13: ${wk(13)}/day · Week 26: ${wk(26)}/day · Week 52: ${wk(52)}/day`;
+}
+
 document.getElementById("edit-goal").addEventListener("click", () => {
-  document.getElementById("goal-type").value = state.goal.type;
-  document.getElementById("goal-amount").value = state.goal.amount;
-  document.getElementById("goal-start").value = state.goal.start;
+  cfgStart.value = state.config.start;
+  cfgBase.value = state.config.weekBase;
+  cfgStep.value = state.config.weekStep;
+  updateCfgPreview();
   goalDialog.showModal();
 });
-goalDialog.addEventListener("close", () => {
-  if (goalDialog.returnValue !== "save") return;
-  const type = document.getElementById("goal-type").value;
-  const amount = Math.max(1, Math.floor(Number(document.getElementById("goal-amount").value)));
-  const start = document.getElementById("goal-start").value || todayStr();
-  state.goal = { type, amount, start };
+cfgBase.addEventListener("input", updateCfgPreview);
+cfgStep.addEventListener("input", updateCfgPreview);
+
+goalDialog.querySelector("form").addEventListener("submit", (e) => {
+  // The form uses method="dialog"; it still closes itself after this handler.
+  const action = e.submitter ? e.submitter.value : goalDialog.returnValue;
+  if (action !== "save") return;
+  state.config = {
+    start: cfgStart.value || todayStr(),
+    weekBase: Math.max(1, Math.floor(Number(cfgBase.value)) || 1),
+    weekStep: Math.max(0, Math.floor(Number(cfgStep.value)) || 0),
+  };
   save();
   render();
 });
@@ -433,7 +539,7 @@ document.getElementById("import-file").addEventListener("change", (e) => {
   e.target.value = "";
 });
 document.getElementById("reset-btn").addEventListener("click", () => {
-  if (!confirm("Erase all participants, sets, and goal settings?")) return;
+  if (!confirm("Erase all participants, sets, and challenge settings?")) return;
   state = DEFAULT_STATE();
   save();
   render();

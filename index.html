@@ -8,9 +8,11 @@
 </head>
 <body>
   <div class="app">
+    <section class="banner" id="banner"></section>
+
     <header class="header">
       <h1>The Push-Up Challenge</h1>
-      <p class="tagline">Log every set. Climb the board. Hit the goal.</p>
+      <p class="tagline">365 days. Harder every week. Don't break the chain.</p>
     </header>
 
     <section class="card team-stats">
@@ -27,18 +29,18 @@
         <span class="stat-label">Reps today</span>
       </div>
       <div class="stat">
-        <span class="stat-value" id="stat-days">0</span>
-        <span class="stat-label">Days in</span>
+        <span class="stat-value" id="stat-ontarget">&mdash;</span>
+        <span class="stat-label">On target today</span>
       </div>
     </section>
 
     <section class="card">
       <div class="goal-row">
         <div class="goal-text">
-          <strong id="goal-headline">Team goal</strong>
+          <strong>Today's team progress</strong>
           <span id="goal-detail" class="muted"></span>
         </div>
-        <button id="edit-goal" class="btn btn-ghost" type="button">Edit goal</button>
+        <button id="edit-goal" class="btn btn-ghost" type="button">Settings</button>
       </div>
       <div class="progress">
         <div class="progress-fill" id="progress-fill"></div>
@@ -112,28 +114,25 @@
       <input id="import-file" type="file" accept="application/json,.json" hidden />
     </section>
 
-    <footer class="footer muted small">The Push-Up Challenge &middot; local browser app</footer>
+    <footer class="footer muted small">The Push-Up Challenge &middot; 365-day local browser app</footer>
   </div>
 
   <dialog id="goal-dialog">
     <form method="dialog" class="goal-dialog-form">
-      <h2>Challenge goal</h2>
+      <h2>Challenge settings</h2>
       <label>
-        Goal type
-        <select id="goal-type">
-          <option value="team-total">Team total reps</option>
-          <option value="per-person-total">Reps per person</option>
-          <option value="per-person-daily">Reps per person per day</option>
-        </select>
+        Challenge start date (Day 1)
+        <input id="cfg-start" type="date" />
       </label>
       <label>
-        Target amount
-        <input id="goal-amount" type="number" min="1" max="10000000" required />
+        Week 1 target &mdash; push-ups per person, per day
+        <input id="cfg-base" type="number" min="1" max="100000" required />
       </label>
       <label>
-        Challenge start date
-        <input id="goal-start" type="date" />
+        Weekly increase &mdash; reps/day added each new week
+        <input id="cfg-step" type="number" min="0" max="100000" required />
       </label>
+      <p class="muted small" id="cfg-preview"></p>
       <div class="dialog-actions">
         <button value="cancel" class="btn btn-ghost" type="submit">Cancel</button>
         <button value="save" class="btn btn-primary" type="submit">Save</button>
