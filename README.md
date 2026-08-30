@@ -26,8 +26,13 @@ saved to `localStorage` — no server, no build step.
   record payments. New participants only owe from the day they were added.
 - **Leaderboard** ranked by total reps, showing `done today`, `reps / target`,
   a check-in streak (🔥) that carries across Sundays, and any amount owed
-- **Team stats** — total reps, participants, reps today, checked in today,
-  penalty pot
+- **Quitting** — the "Ring the quitter's bell" card at the bottom. Pick your
+  name, confirm, then type your name to drop out. It's permanent: your name
+  stays on the board marked **DROPPED OUT**, penalties owed up to that day
+  still stand (they stop accruing after), and you leave the weekly rotation.
+  A re-admit (↩) button on the Participants list can undo it.
+- **Team stats** — total reps, participants (with dropped count), reps today,
+  checked in today, penalty pot
 - **Today's team progress** bar — team reps today vs `target × participants`
 - **30-day activity chart** with a dashed target line, filterable to one person
   or everyone

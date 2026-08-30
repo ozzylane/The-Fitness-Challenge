@@ -160,6 +160,7 @@ body::after {
 .stat { display: flex; flex-direction: column; gap: 2px; }
 .stat-value { font-size: 1.5rem; font-weight: 700; }
 .stat-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.stat-sub { font-size: 0.7rem; font-weight: 600; color: var(--muted); }
 #stat-pot { color: var(--accent); }
 
 .goal-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
@@ -421,6 +422,29 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
 .pay-form select { flex: 1 1 130px; }
 .pay-form #pay-amount { flex: 0 1 110px; }
 .pay-form #pay-note { flex: 2 1 140px; }
+
+/* dropped-out participants */
+.tag-out {
+  display: inline-block;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #fff;
+  background: var(--accent);
+  border-radius: 3px;
+  padding: 1px 4px;
+  vertical-align: middle;
+}
+.dropped { color: var(--accent); font-weight: 700; font-size: 0.8rem; }
+.lb-row.quit, .checkgrid tbody tr.quit, .ptable tr.quit, .history li.quit { opacity: 0.55; }
+.lb-row.quit .lb-bar span { background: var(--muted); }
+.checkgrid tbody tr.quit td.cell { cursor: default; }
+.h-del.readmit { color: var(--good); }
+.h-del.readmit:hover { color: var(--good); filter: brightness(1.2); }
+
+.quit-card h2 { color: var(--accent); }
+.quit-card #quit-who { flex: 1 1 130px; }
+.quit-card #quit-btn { flex: 2 1 200px; }
 
 @media (max-width: 420px) {
   .team-stats { grid-template-columns: repeat(3, 1fr); gap: 14px; }

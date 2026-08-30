@@ -112,11 +112,21 @@ function dailyTargetForDate(dateStr) {
   return dailyTarget(challengeWeek(challengeDay(dateStr)));
 }
 
-/** Whose turn it is to design a given week's challenge — the roster rotates
- *  in alphabetical order, wrapping around. */
+function isQuit(personId) {
+  const p = state.people.find((x) => x.id === personId);
+  return !!(p && p.quitDate);
+}
+
+/** Participants still in the challenge (not dropped out). */
+function activePeople() {
+  return state.people.filter((p) => !p.quitDate);
+}
+
+/** Whose turn it is to design a given week's challenge — the active roster
+ *  rotates in alphabetical order, wrapping around. */
 function weekCreator(weekNum) {
-  if (state.people.length === 0) return null;
-  const sorted = state.people.slice().sort((a, b) => a.name.localeCompare(b.name));
+  const sorted = activePeople().slice().sort((a, b) => a.name.localeCompare(b.name));
+  if (sorted.length === 0) return null;
   const i = ((weekNum - 1) % sorted.length + sorted.length) % sorted.length;
   return sorted[i].name;
 }
@@ -239,11 +249,13 @@ function penaltyStartFor(personId) {
 }
 
 /** Past days (not today, not future) that were missed: in the challenge window,
- *  not a Sunday, and with no check-in. */
+ *  not a Sunday, and with no check-in. Stops accruing on the day someone quits. */
 function missedDaysFor(personId) {
   const today = todayStr();
+  const person = state.people.find((p) => p.id === personId);
+  const stop = person && person.quitDate && person.quitDate < today ? person.quitDate : today;
   const cur = new Date(penaltyStartFor(personId) + "T00:00:00");
-  const end = new Date(today + "T00:00:00"); // today is still open — not counted
+  const end = new Date(stop + "T00:00:00"); // the stop day itself is not counted
   let missed = 0;
   while (cur < end) {
     const ds = todayStr(cur);
@@ -342,36 +354,45 @@ function renderBanner() {
 }
 
 function renderPeopleSelects() {
-  const opts = state.people
-    .slice()
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`)
-    .join("");
+  const byName = (a, b) => a.name.localeCompare(b.name);
+  const opt = (p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`;
+  const allOpts = state.people.slice().sort(byName).map(opt).join("");
+  const activeOpts = activePeople().slice().sort(byName).map(opt).join("");
 
-  const whoInput = document.getElementById("who-input");
-  const prevWho = whoInput.value;
-  whoInput.innerHTML = opts || `<option value="" disabled selected>Add a participant first</option>`;
-  if (prevWho && state.people.some((p) => p.id === prevWho)) whoInput.value = prevWho;
+  // Logging a set and quitting are for active participants only.
+  for (const id of ["who-input", "quit-who"]) {
+    const sel = document.getElementById(id);
+    if (!sel) continue;
+    const prev = sel.value;
+    sel.innerHTML =
+      activeOpts || `<option value="" disabled selected>No active participants</option>`;
+    if (prev && activePeople().some((p) => p.id === prev)) sel.value = prev;
+  }
 
+  // Chart / history filters keep everyone, including people who dropped out.
   for (const id of ["chart-who", "history-who"]) {
     const sel = document.getElementById(id);
     const prev = sel.value;
-    sel.innerHTML = `<option value="__all__">Everyone</option>` + opts;
+    sel.innerHTML = `<option value="__all__">Everyone</option>` + allOpts;
     if (prev && (prev === "__all__" || state.people.some((p) => p.id === prev))) sel.value = prev;
   }
 }
 
 function renderTeamStats() {
+  const active = activePeople();
+  const dropped = state.people.length - active.length;
+
   document.getElementById("stat-team-total").textContent = fmt(repsFor(() => true));
-  document.getElementById("stat-participants").textContent = state.people.length;
+  document.getElementById("stat-participants").innerHTML =
+    active.length + (dropped ? ` <span class="stat-sub">(${dropped} out)</span>` : "");
   document.getElementById("stat-today-total").textContent = fmt(repsFor((e) => e.date === todayStr()));
 
   const checkedInEl = document.getElementById("stat-checkedin");
-  if (state.people.length === 0) {
+  if (active.length === 0) {
     checkedInEl.textContent = "—";
   } else {
-    const checked = state.people.filter((p) => isChecked(p.id, todayStr())).length;
-    checkedInEl.textContent = `${checked}/${state.people.length}`;
+    const checked = active.filter((p) => isChecked(p.id, todayStr())).length;
+    checkedInEl.textContent = `${checked}/${active.length}`;
   }
 
   const outstanding = state.people.reduce((s, p) => s + Math.max(0, outstandingBy(p.id)), 0);
@@ -380,7 +401,7 @@ function renderTeamStats() {
 
 function renderTodayProgress() {
   const day = challengeDay();
-  const people = Math.max(1, state.people.length);
+  const people = Math.max(1, activePeople().length);
   const per = dailyTarget();
   const goalToday = per * people;
   const doneToday = repsFor((e) => e.date === todayStr());
@@ -450,9 +471,10 @@ function renderGrid() {
   let body = "<tbody>";
   for (const p of people) {
     let mtd = 0;
-    body += `<tr><th class="name" scope="row" title="${escapeHtml(p.name)}">${escapeHtml(
+    const out = !!p.quitDate;
+    body += `<tr class="${out ? "quit" : ""}"><th class="name" scope="row" title="${escapeHtml(
       p.name
-    )}</th>`;
+    )}">${escapeHtml(p.name)}${out ? ` <span class="tag-out">OUT</span>` : ""}</th>`;
     const pStart = penaltyStartFor(p.id);
     for (const day of days) {
       if (day.sunday) {
@@ -461,9 +483,10 @@ function renderGrid() {
       }
       const done = isChecked(p.id, day.ds);
       if (done) mtd++;
-      const clickable = day.inWindow && day.isToday; // only today can be edited
+      const clickable = day.inWindow && day.isToday && !out; // only today, only if still in
       const past = day.inWindow && !day.future && !day.isToday;
-      const missed = past && !done && day.ds >= pStart;
+      const missed =
+        past && !done && day.ds >= pStart && (!p.quitDate || day.ds < p.quitDate);
       const cls = [
         "cell",
         done ? "done" : "",
@@ -528,6 +551,7 @@ function renderPenalties() {
       return {
         id: p.id,
         name: p.name,
+        quit: !!p.quitDate,
         missed: missedDaysFor(p.id),
         owed,
         paid,
@@ -552,8 +576,12 @@ function renderPenalties() {
     tbody.innerHTML = rows
       .map(
         (r) => `
-        <tr class="${r.outstanding > 0 ? "owes" : r.owed > 0 ? "settled" : ""}">
-          <td class="pt-name">${escapeHtml(r.name)}</td>
+        <tr class="${r.quit ? "quit " : ""}${
+          r.outstanding > 0 ? "owes" : r.owed > 0 ? "settled" : ""
+        }">
+          <td class="pt-name">${escapeHtml(r.name)}${
+          r.quit ? ` <span class="tag-out">OUT</span>` : ""
+        }</td>
           <td>${r.missed}</td>
           <td>${money(r.owed)}</td>
           <td>${money(r.paid)}</td>
@@ -604,29 +632,38 @@ function renderLeaderboard() {
     .map((p) => ({
       id: p.id,
       name: p.name,
+      quit: !!p.quitDate,
       total: totalForPerson(p.id),
       today: todayForPerson(p.id),
       checkedToday: isChecked(p.id, todayStr()),
       streak: checkinStreak(p.id),
       outstanding: outstandingBy(p.id),
     }))
-    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+    // active first, then by reps
+    .sort(
+      (a, b) =>
+        Number(a.quit) - Number(b.quit) ||
+        b.total - a.total ||
+        a.name.localeCompare(b.name)
+    );
 
   const max = Math.max(1, rows[0].total);
   const medals = ["🥇", "🥈", "🥉"];
+  let activeRank = 0;
 
   el.innerHTML = rows
-    .map((r, i) => {
+    .map((r) => {
       const barPct = (r.total / max) * 100;
-      const rank = medals[i] || `${i + 1}.`;
+      const rank = r.quit ? "&nbsp;" : (activeRank++, medals[activeRank - 1] || `${activeRank}.`);
       const parts = [];
+      if (r.quit) parts.push("dropped out");
       if (r.checkedToday) parts.push("✓ done today");
-      if (target != null) parts.push(`${fmt(r.today)}/${fmt(target)} reps`);
+      if (target != null && !r.quit) parts.push(`${fmt(r.today)}/${fmt(target)} reps`);
       else if (r.today) parts.push(`+${fmt(r.today)} reps`);
       if (r.streak > 1) parts.push(`${r.streak}🔥`);
       if (r.outstanding > 0) parts.push(`owes ${money(r.outstanding)}`);
       return `
-      <li class="lb-row${r.checkedToday ? " hit" : ""}">
+      <li class="lb-row${r.checkedToday ? " hit" : ""}${r.quit ? " quit" : ""}">
         <span class="lb-rank">${rank}</span>
         <span class="lb-name">${escapeHtml(r.name)}</span>
         <span class="lb-bar"><span style="width:${barPct}%"></span></span>
@@ -654,7 +691,7 @@ function renderChart() {
 
   const per = targetNow();
   const target =
-    per == null ? null : who === "__all__" ? per * Math.max(1, state.people.length) : per;
+    per == null ? null : who === "__all__" ? per * Math.max(1, activePeople().length) : per;
   const max = Math.max(1, target || 0, ...days.map((d) => d.reps));
 
   const chart = document.getElementById("chart");
@@ -688,14 +725,25 @@ function renderPeopleList() {
   el.innerHTML = state.people
     .slice()
     .sort((a, b) => a.name.localeCompare(b.name))
-    .map(
-      (p) => `
-      <li>
-        <span class="h-date">${escapeHtml(p.name)}</span>
+    .map((p) => {
+      const out = !!p.quitDate;
+      const label = out
+        ? `${escapeHtml(p.name)} <span class="dropped">DROPPED OUT · ${p.quitDate}</span>`
+        : escapeHtml(p.name);
+      const rightBtn = out
+        ? `<button class="h-del readmit" data-readmit="${p.id}" title="Re-admit ${escapeHtml(
+            p.name
+          )}">↩</button>`
+        : `<button class="h-del" data-person="${p.id}" title="Remove ${escapeHtml(
+            p.name
+          )}">✕</button>`;
+      return `
+      <li class="${out ? "quit" : ""}">
+        <span class="h-date">${label}</span>
         <span class="h-reps">${fmt(totalForPerson(p.id))}</span>
-        <button class="h-del" data-person="${p.id}" title="Remove ${escapeHtml(p.name)}">✕</button>
-      </li>`
-    )
+        ${rightBtn}
+      </li>`;
+    })
     .join("");
 }
 
@@ -766,6 +814,23 @@ function removePerson(id) {
   state.entries = state.entries.filter((e) => e.personId !== id);
   state.payments = state.payments.filter((pm) => pm.personId !== id);
   delete state.checkins[id];
+  save();
+  render();
+}
+
+function quitPerson(personId) {
+  const p = state.people.find((x) => x.id === personId);
+  if (!p || p.quitDate) return;
+  p.quitDate = todayStr();
+  save();
+  render();
+}
+
+function readmitPerson(personId) {
+  const p = state.people.find((x) => x.id === personId);
+  if (!p || !p.quitDate) return;
+  if (!confirm(`Bring ${p.name} back into the challenge?`)) return;
+  delete p.quitDate;
   save();
   render();
 }
@@ -901,8 +966,38 @@ document.getElementById("add-person-form").addEventListener("submit", (e) => {
 });
 
 document.getElementById("people-list").addEventListener("click", (e) => {
-  const btn = e.target.closest("button[data-person]");
-  if (btn) removePerson(btn.dataset.person);
+  const rm = e.target.closest("button[data-person]");
+  if (rm) removePerson(rm.dataset.person);
+  const re = e.target.closest("button[data-readmit]");
+  if (re) readmitPerson(re.dataset.readmit);
+});
+
+/* quit the challenge */
+document.getElementById("quit-btn").addEventListener("click", () => {
+  const id = document.getElementById("quit-who").value;
+  const person = state.people.find((p) => p.id === id);
+  if (!person) {
+    alert("Pick who's quitting first.");
+    return;
+  }
+  if (person.quitDate) {
+    alert(`${person.name} already dropped out.`);
+    return;
+  }
+  const sure = confirm(
+    `Are you sure you want to QUIT The Push-Up Challenge?\n\n` +
+      `This is permanent. "${person.name}" stays on the board marked DROPPED OUT, ` +
+      `and any penalties owed up to today still stand.`
+  );
+  if (!sure) return;
+  const typed = prompt(`Type "${person.name}" exactly to confirm you are dropping out:`);
+  if (typed === null) return;
+  if (typed.trim().toLowerCase() !== person.name.toLowerCase()) {
+    alert("That didn't match your name — you're still in. Keep going.");
+    return;
+  }
+  quitPerson(id);
+  alert(`${person.name} has dropped out of The Push-Up Challenge.`);
 });
 
 document.getElementById("history").addEventListener("click", (e) => {
