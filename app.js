@@ -2,7 +2,6 @@
  * State lives in localStorage under STORAGE_KEY. No network calls. */
 
 const STORAGE_KEY = "pushup-challenge:v1";
-const CHART_DAYS = 30;
 const TOTAL_DAYS = 365;
 const PLAN_WEEKS = 52;
 const CHALLENGE_START = "2026-09-01"; // official Day 1
@@ -160,16 +159,6 @@ function challengeWeek(day = challengeDay()) {
   return Math.max(1, Math.ceil(day / 7));
 }
 
-/** Total reps prescribed per person per day for a given challenge week. */
-function dailyTarget(week = challengeWeek()) {
-  return planTotal(week);
-}
-
-/** Per-person target that applied on a specific calendar date. */
-function dailyTargetForDate(dateStr) {
-  return dailyTarget(challengeWeek(challengeDay(dateStr)));
-}
-
 function isQuit(personId) {
   const p = state.people.find((x) => x.id === personId);
   return !!(p && p.quitDate);
@@ -195,40 +184,6 @@ function daysInMonth(year, monthIdx) {
 
 function isActive(day = challengeDay()) {
   return day >= 1 && day <= TOTAL_DAYS;
-}
-
-/** Per-person target for right now, or null if the challenge isn't running. */
-function targetNow() {
-  return isActive() ? dailyTarget() : null;
-}
-
-/* ---------- aggregate helpers ---------- */
-
-function repsFor(predicate) {
-  return state.entries.filter(predicate).reduce((sum, e) => sum + e.reps, 0);
-}
-
-function totalForPerson(id) {
-  return repsFor((e) => e.personId === id);
-}
-
-function todayForPerson(id) {
-  return repsFor((e) => e.personId === id && e.date === todayStr());
-}
-
-function streakForPerson(id) {
-  const days = new Set(
-    state.entries.filter((e) => e.personId === id && e.reps > 0).map((e) => e.date)
-  );
-  if (days.size === 0) return 0;
-  let streak = 0;
-  const cursor = new Date();
-  if (!days.has(todayStr(cursor))) cursor.setDate(cursor.getDate() - 1);
-  while (days.has(todayStr(cursor))) {
-    streak += 1;
-    cursor.setDate(cursor.getDate() - 1);
-  }
-  return streak;
 }
 
 function personName(id) {
@@ -347,9 +302,7 @@ function render() {
   renderGrid();
   renderPenalties();
   renderLeaderboard();
-  renderChart();
   renderPeopleList();
-  renderHistory();
 }
 
 function renderBanner() {
@@ -409,25 +362,14 @@ function renderBanner() {
 function renderPeopleSelects() {
   const byName = (a, b) => a.name.localeCompare(b.name);
   const opt = (p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`;
-  const allOpts = state.people.slice().sort(byName).map(opt).join("");
   const activeOpts = activePeople().slice().sort(byName).map(opt).join("");
 
-  // Logging a set and quitting are for active participants only.
-  for (const id of ["who-input", "quit-who"]) {
-    const sel = document.getElementById(id);
-    if (!sel) continue;
+  const sel = document.getElementById("quit-who");
+  if (sel) {
     const prev = sel.value;
     sel.innerHTML =
       activeOpts || `<option value="" disabled selected>No active participants</option>`;
     if (prev && activePeople().some((p) => p.id === prev)) sel.value = prev;
-  }
-
-  // Chart / history filters keep everyone, including people who dropped out.
-  for (const id of ["chart-who", "history-who"]) {
-    const sel = document.getElementById(id);
-    const prev = sel.value;
-    sel.innerHTML = `<option value="__all__">Everyone</option>` + allOpts;
-    if (prev && (prev === "__all__" || state.people.some((p) => p.id === prev))) sel.value = prev;
   }
 }
 
@@ -764,48 +706,6 @@ function renderLeaderboard() {
     .join("");
 }
 
-function renderChart() {
-  const who = document.getElementById("chart-who").value || "__all__";
-  document.getElementById("chart-title").textContent =
-    "Last 30 days" + (who === "__all__" ? " — everyone" : " — " + personName(who));
-
-  const days = [];
-  const base = new Date(todayStr() + "T00:00:00");
-  for (let i = CHART_DAYS - 1; i >= 0; i--) {
-    const d = new Date(base);
-    d.setDate(d.getDate() - i);
-    const ds = todayStr(d);
-    const reps = repsFor((e) => e.date === ds && (who === "__all__" || e.personId === who));
-    days.push({ ds, reps });
-  }
-
-  const per = targetNow();
-  const target =
-    per == null ? null : who === "__all__" ? per * Math.max(1, activePeople().length) : per;
-  const max = Math.max(1, target || 0, ...days.map((d) => d.reps));
-
-  const chart = document.getElementById("chart");
-  const bars = days
-    .map((d) => {
-      const h = (d.reps / max) * 100;
-      const cls =
-        "bar" + (d.reps > 0 ? " has-value" : "") + (d.ds === todayStr() ? " today" : "");
-      return `<div class="${cls}" style="height:${Math.max(2, h)}%" title="${d.ds}: ${fmt(
-        d.reps
-      )}"></div>`;
-    })
-    .join("");
-  let line = "";
-  if (target != null) {
-    const bottomPct = (target / max) * 100;
-    const labelBelow = bottomPct > 88 ? " label-below" : "";
-    line = `<div class="chart-target${labelBelow}" style="bottom:${bottomPct.toFixed(
-      1
-    )}%"><span>target ${fmt(target)}/day</span></div>`;
-  }
-  chart.innerHTML = bars + line;
-}
-
 function renderPeopleList() {
   const el = document.getElementById("people-list");
   if (state.people.length === 0) {
@@ -830,35 +730,12 @@ function renderPeopleList() {
       return `
       <li class="${out ? "quit" : ""}">
         <span class="h-date">${label}</span>
-        <span class="h-reps">${fmt(totalForPerson(p.id))}</span>
+        <span class="h-reps" title="workout days completed">${fmt(
+          checkinCount(p.id, state.config.start, todayStr())
+        )}</span>
         ${rightBtn}
       </li>`;
     })
-    .join("");
-}
-
-function renderHistory() {
-  const who = document.getElementById("history-who").value || "__all__";
-  const el = document.getElementById("history");
-  const list = state.entries
-    .filter((e) => who === "__all__" || e.personId === who)
-    .slice()
-    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
-    .slice(0, 40);
-
-  if (list.length === 0) {
-    el.innerHTML = `<li class="empty">No sets logged yet.</li>`;
-    return;
-  }
-  el.innerHTML = list
-    .map(
-      (e) => `
-      <li>
-        <span class="h-date">${e.date} · ${escapeHtml(personName(e.personId))}</span>
-        <span class="h-reps">${fmt(e.reps)}</span>
-        <button class="h-del" data-entry="${e.id}" title="Delete this set">✕</button>
-      </li>`
-    )
     .join("");
 }
 
@@ -921,38 +798,6 @@ function readmitPerson(personId) {
   if (!p || !p.quitDate) return;
   if (!confirm(`Bring ${p.name} back into the challenge?`)) return;
   delete p.quitDate;
-  save();
-  render();
-}
-
-function addEntry(personId, reps, date) {
-  reps = Math.floor(Number(reps));
-  if (!personId || !state.people.some((p) => p.id === personId)) {
-    alert("Pick a participant first.");
-    return;
-  }
-  if (!Number.isFinite(reps) || reps < 1) {
-    alert("Enter a rep count of 1 or more.");
-    return;
-  }
-  const d = date || todayStr();
-  if (d !== todayStr()) {
-    alert("You can only log for today — past days lock at midnight.");
-    return;
-  }
-  state.entries.push({ id: uid(), personId, date: d, reps });
-  // Hitting the day's target auto-completes today's check-in.
-  const cd = challengeDay(d);
-  if (cd >= 1 && cd <= TOTAL_DAYS && !isSunday(d)) {
-    const dayReps = repsFor((e) => e.personId === personId && e.date === d);
-    if (dayReps >= dailyTargetForDate(d)) setCheckin(personId, d, true);
-  }
-  save();
-  render();
-}
-
-function removeEntry(id) {
-  state.entries = state.entries.filter((e) => e.id !== id);
   save();
   render();
 }
@@ -1020,33 +865,6 @@ function importJson(file) {
 
 /* ---------- wire up ---------- */
 
-const dateInput = document.getElementById("date-input");
-function lockDateInputToToday() {
-  const t = todayStr();
-  dateInput.value = t;
-  dateInput.min = t;
-  dateInput.max = t;
-}
-lockDateInputToToday();
-
-document.getElementById("log-form").addEventListener("submit", (e) => {
-  e.preventDefault();
-  const who = document.getElementById("who-input").value;
-  const reps = document.getElementById("reps-input").value;
-  const date = document.getElementById("date-input").value || todayStr();
-  addEntry(who, reps, date);
-  document.getElementById("reps-input").value = "";
-  document.getElementById("reps-input").focus();
-});
-
-document.getElementById("quick-add").addEventListener("click", (e) => {
-  const btn = e.target.closest("button[data-reps]");
-  if (!btn) return;
-  const who = document.getElementById("who-input").value;
-  const date = document.getElementById("date-input").value || todayStr();
-  addEntry(who, btn.dataset.reps, date);
-});
-
 document.getElementById("add-person-form").addEventListener("submit", (e) => {
   e.preventDefault();
   const input = document.getElementById("person-name");
@@ -1090,11 +908,6 @@ document.getElementById("quit-btn").addEventListener("click", () => {
   alert(`${person.name} has dropped out of The Fitness Challenge.`);
 });
 
-document.getElementById("history").addEventListener("click", (e) => {
-  const btn = e.target.closest("button[data-entry]");
-  if (btn) removeEntry(btn.dataset.entry);
-});
-
 /* penalties */
 document.getElementById("pay-form").addEventListener("submit", (e) => {
   e.preventDefault();
@@ -1109,9 +922,6 @@ document.getElementById("payments-list").addEventListener("click", (e) => {
   const btn = e.target.closest("button[data-payment]");
   if (btn) removePayment(btn.dataset.payment);
 });
-
-document.getElementById("chart-who").addEventListener("change", renderChart);
-document.getElementById("history-who").addEventListener("change", renderHistory);
 
 /* check-in grid */
 function handleGridActivate(e) {
@@ -1210,7 +1020,6 @@ setInterval(() => {
   const t = todayStr();
   if (t !== lastSeenDate) {
     lastSeenDate = t;
-    lockDateInputToToday();
     renderGrid._lastKey = null;
     render();
   }

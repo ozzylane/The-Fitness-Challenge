@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>The Fitness Challenge</title>
-  <link rel="stylesheet" href="styles.css?v=5" />
+  <link rel="stylesheet" href="styles.css?v=6" />
 </head>
 <body>
   <div class="app">
@@ -132,45 +132,9 @@
       </div>
     </section>
 
-    <section class="card log-card">
-      <h2>Log your reps <span class="muted small">(optional)</span></h2>
-      <p class="muted small">
-        The check-in grid is the record that counts. This is just a tally &mdash; hit the day's
-        prescribed total and it checks you in automatically.
-      </p>
-      <form id="log-form" class="log-form">
-        <select id="who-input" required></select>
-        <input
-          id="reps-input"
-          type="number"
-          min="1"
-          max="10000"
-          inputmode="numeric"
-          placeholder="Total reps"
-          required
-        />
-        <input id="date-input" type="date" />
-        <button class="btn btn-primary" type="submit">Add</button>
-      </form>
-      <div class="quick-add" id="quick-add">
-        <button type="button" data-reps="10">+10</button>
-        <button type="button" data-reps="20">+20</button>
-        <button type="button" data-reps="25">+25</button>
-        <button type="button" data-reps="50">+50</button>
-      </div>
-    </section>
-
     <section class="card">
-      <h2>Leaderboard</h2>
+      <h2>Leaderboard <span class="muted small">&mdash; workout days completed</span></h2>
       <ol id="leaderboard" class="leaderboard"></ol>
-    </section>
-
-    <section class="card">
-      <div class="history-head">
-        <h2 id="chart-title">Last 30 days</h2>
-        <select id="chart-who"></select>
-      </div>
-      <div id="chart" class="chart"></div>
     </section>
 
     <section class="card">
@@ -182,14 +146,6 @@
         <button class="btn btn-primary" type="submit">Add</button>
       </form>
       <ul id="people-list" class="history"></ul>
-    </section>
-
-    <section class="card">
-      <div class="history-head">
-        <h2 id="history-title">Recent activity</h2>
-        <select id="history-who"></select>
-      </div>
-      <ul id="history" class="history"></ul>
     </section>
 
     <section class="card data-card">
@@ -240,6 +196,6 @@
     </form>
   </dialog>
 
-  <script src="app.js?v=5"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>

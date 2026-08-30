@@ -48,8 +48,6 @@ current week is highlighted. The plan lives in `app.js` (`planForWeek`) — edit
   Participants list can undo it.
 - **Team stats** — workout days, participants (with dropped count), best streak,
   checked in today, penalty pot
-- **Optional rep tally** — "Log your reps" records a daily total; hitting the
-  week's prescribed total auto-checks you in. Feeds a 30-day chart.
 - **Motivation hero** image + watermark (see below)
 - **Export / Import JSON** to move the whole challenge between devices
 
