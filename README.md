@@ -48,9 +48,16 @@ Week 52 is `275`/day. The preview in the dialog shows the ramp.
 
 ## Motivation image
 
-The header shows `assets/warrior.jpg`. Drop your image in at that path (JPG or
-PNG — if PNG, update the `src` in `index.html`). If the file is missing the app
-just hides the image frame and shows the title normally.
+One file — `assets/warrior.jpg` — is used in two places:
+
+1. the **header hero** image, and
+2. a **faint watermark** fixed over the whole app.
+
+Drop your image in at that path (JPG, or update the `src` in `index.html` and the
+`url()` in `styles.css` for another name). If the file is missing the app just
+hides the hero frame and the watermark — everything else works normally.
+Tune the watermark strength via `opacity` in the `body::after` rule in
+`styles.css` (currently `0.05`).
 
 ## Data
 

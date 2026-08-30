@@ -21,7 +21,23 @@ body {
   line-height: 1.5;
 }
 
+/* motivational watermark — assets/warrior.jpg, faint and fixed over the whole
+   app. Silently absent if the file isn't there. Tune `opacity` to taste. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  pointer-events: none;
+  background: url("assets/warrior.jpg") no-repeat center 42%;
+  background-size: min(82vh, 600px);
+  opacity: 0.05;
+  filter: grayscale(0.4) contrast(1.1);
+}
+
 .app {
+  position: relative;
+  z-index: 1;
   max-width: 680px;
   margin: 0 auto;
   padding: 28px 18px 60px;
