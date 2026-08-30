@@ -121,6 +121,7 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 0;
   align-items: flex-end;
   gap: 3px;
   height: 120px;
+  padding: 3px 3px 0;
 }
 .chart .bar {
   flex: 1;
