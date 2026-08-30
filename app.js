@@ -5,6 +5,7 @@ const STORAGE_KEY = "pushup-challenge:v1";
 const CHART_DAYS = 30;
 const TOTAL_DAYS = 365;
 const PLAN_WEEKS = 52;
+const CHALLENGE_START = "2026-09-01"; // official Day 1
 
 const DEFAULT_STATE = () => ({
   people: [],   // [{ id, name, since: "YYYY-MM-DD" }]
@@ -14,7 +15,7 @@ const DEFAULT_STATE = () => ({
   // Penalty payments recorded against what people owe: [{ id, personId, amount, date, note }]
   payments: [],
   // penalty: $ owed for each missed (non-Sunday, in-window) day with no check-in.
-  config: { start: todayStr(), penalty: 20 },
+  config: { start: CHALLENGE_START, penalty: 20 },
 });
 
 /* ---------- the year plan ----------
@@ -111,6 +112,16 @@ function load() {
     // Back-fill "since" for older saves: treat them as founding members.
     for (const p of merged.people) {
       if (!p.since) p.since = merged.config.start;
+    }
+    // Snap not-yet-started saves to the official start date.
+    const noActivity =
+      Object.keys(merged.checkins).length === 0 && merged.payments.length === 0;
+    if (noActivity && merged.config.start !== CHALLENGE_START) {
+      const old = merged.config.start;
+      merged.config.start = CHALLENGE_START;
+      for (const p of merged.people) {
+        if (!p.since || p.since === old) p.since = CHALLENGE_START;
+      }
     }
     return merged;
   } catch (err) {
