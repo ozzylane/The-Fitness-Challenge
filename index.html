@@ -81,6 +81,18 @@
         <button class="btn btn-primary" type="submit">Record payment</button>
       </form>
       <ul id="payments-list" class="history"></ul>
+
+      <div class="gfm-block">
+        <h3>Pay up &mdash; Hammer Heads GoFundMe</h3>
+        <p class="muted small">
+          The ledger above tracks who owes what. Actually move the money here.
+        </p>
+        <div class="gfm-embed" data-url="https://www.gofundme.com/f/support-the-hammer-heads-challenge/widget/large?attribution_id=sl%3A4ab9808e-5754-4aec-8799-8adefbdcb50e"></div>
+        <p class="gfm-fallback">
+          <a href="https://www.gofundme.com/f/support-the-hammer-heads-challenge" target="_blank" rel="noopener noreferrer">Open the GoFundMe page &rarr;</a>
+          <span class="muted">(the embedded widget needs the app served over http/https)</span>
+        </p>
+      </div>
     </section>
 
     <section class="card">
@@ -208,6 +220,7 @@
     </form>
   </dialog>
 
+  <script defer src="https://www.gofundme.com/static/js/embed.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

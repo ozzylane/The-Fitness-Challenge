@@ -22,8 +22,9 @@ saved to `localStorage` — no server, no build step.
   becomes a penalty. Logging reps is also today-only.
 - **Penalties** — a missed weekday (in-window, not Sunday, no check-in) costs a
   configurable amount (default **$20**). The Penalties card shows per-person
-  missed days / owed / paid / outstanding, a team pot summary, and a form to
-  record payments. New participants only owe from the day they were added.
+  missed days / owed / paid / outstanding, a team pot summary, a form to record
+  payments, and the team **GoFundMe** widget for actually collecting the money.
+  New participants only owe from the day they were added.
 - **Leaderboard** ranked by total reps, showing `done today`, `reps / target`,
   a check-in streak (🔥) that carries across Sundays, and any amount owed
 - **Quitting** — the "Ring the quitter's bell" card at the bottom. Pick your
@@ -75,6 +76,15 @@ Drop your image in at that path (JPG, or update the `src` in `index.html` and th
 hides the hero frame and the watermark — everything else works normally.
 Tune the watermark strength via `opacity` in the `body::after` rule in
 `styles.css` (currently `0.05`).
+
+## Third-party embed
+
+The Penalties card embeds the team GoFundMe via `www.gofundme.com/static/js/embed.js`
+— the **only** external request the app makes. It needs the app served over
+http/https (not `file://`); a plain text link to the campaign always works as a
+fallback. To change the campaign, edit the `data-url` on `.gfm-embed` in
+`index.html`. To remove it, delete the `.gfm-block` div and the `embed.js`
+`<script>` tag.
 
 ## Data
 
