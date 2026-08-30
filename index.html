@@ -38,6 +38,10 @@
         <span class="stat-value" id="stat-checkedin">&mdash;</span>
         <span class="stat-label">Checked in today</span>
       </div>
+      <div class="stat">
+        <span class="stat-value" id="stat-pot">$0</span>
+        <span class="stat-label">Penalty pot</span>
+      </div>
     </section>
 
     <section class="card grid-card">
@@ -51,12 +55,32 @@
         </div>
       </div>
       <p class="muted small">
-        Tap your row on the day you finished your push-ups. Sundays are rest days and stay blocked.
-        Anyone on this device checks in on their own row.
+        Tap your row on <strong>today</strong> when you finish your push-ups. Days lock at
+        midnight &mdash; a missed weekday (not Sunday) is a penalty. Sundays are rest days.
       </p>
       <div class="grid-scroll">
         <table class="checkgrid" id="checkgrid"></table>
       </div>
+    </section>
+
+    <section class="card">
+      <h2>Penalties</h2>
+      <p id="penalty-summary" class="muted small">&nbsp;</p>
+      <div class="ptable-wrap">
+        <table class="ptable">
+          <thead>
+            <tr><th>Participant</th><th>Missed</th><th>Owed</th><th>Paid</th><th>Outstanding</th></tr>
+          </thead>
+          <tbody id="penalty-rows"></tbody>
+        </table>
+      </div>
+      <form id="pay-form" class="log-form pay-form">
+        <select id="pay-who" required></select>
+        <input id="pay-amount" type="number" step="1" placeholder="Amount $" required />
+        <input id="pay-note" type="text" maxlength="40" placeholder="Note (optional)" />
+        <button class="btn btn-primary" type="submit">Record payment</button>
+      </form>
+      <ul id="payments-list" class="history"></ul>
     </section>
 
     <section class="card">
@@ -156,6 +180,10 @@
       <label>
         Weekly increase &mdash; reps/day added each new week
         <input id="cfg-step" type="number" min="0" max="100000" required />
+      </label>
+      <label>
+        Penalty per missed day ($)
+        <input id="cfg-penalty" type="number" min="0" max="100000" required />
       </label>
       <p class="muted small" id="cfg-preview"></p>
       <div class="dialog-actions">

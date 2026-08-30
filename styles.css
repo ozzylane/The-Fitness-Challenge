@@ -153,13 +153,14 @@ body::after {
 
 .team-stats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 10px;
   text-align: center;
 }
 .stat { display: flex; flex-direction: column; gap: 2px; }
-.stat-value { font-size: 1.6rem; font-weight: 700; }
-.stat-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.stat-value { font-size: 1.5rem; font-weight: 700; }
+.stat-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+#stat-pot { color: var(--accent); }
 
 .goal-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
 .goal-text { display: flex; flex-direction: column; }
@@ -382,6 +383,12 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
   color: transparent;
   background: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(255, 255, 255, 0.03) 5px, rgba(255, 255, 255, 0.03) 10px);
 }
+.checkgrid td.cell.missed {
+  cursor: default;
+  color: var(--accent);
+  font-weight: 700;
+  background: rgba(255, 90, 60, 0.16);
+}
 .checkgrid .blocked {
   background: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.02) 5px, rgba(255, 255, 255, 0.07) 5px, rgba(255, 255, 255, 0.07) 10px);
   color: var(--muted);
@@ -400,8 +407,23 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
 .checkgrid td.cell:focus-visible { outline: 2px solid var(--accent-2); outline-offset: -2px; }
 .checkgrid .empty { padding: 16px; }
 
+/* penalties table */
+.ptable-wrap { overflow-x: auto; margin-bottom: 12px; }
+.ptable { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.ptable th, .ptable td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.ptable th { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.ptable th:first-child, .ptable td.pt-name { text-align: left; }
+.ptable td.pt-out { font-weight: 700; }
+.ptable tr.owes td.pt-out { color: var(--accent); }
+.ptable tr.settled td.pt-out { color: var(--good); }
+#penalty-summary .out { color: var(--accent); }
+.pay-form { margin-bottom: 12px; }
+.pay-form select { flex: 1 1 130px; }
+.pay-form #pay-amount { flex: 0 1 110px; }
+.pay-form #pay-note { flex: 2 1 140px; }
+
 @media (max-width: 420px) {
-  .team-stats { grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .team-stats { grid-template-columns: repeat(3, 1fr); gap: 14px; }
   .header h1 { font-size: 1.5rem; }
   .lb-row { grid-template-columns: 28px 1fr auto; grid-template-areas: "rank name total" "bar bar bar" "meta meta meta"; }
   .hero-text h1 { font-size: 1.6rem; }

@@ -6,12 +6,15 @@ const CHART_DAYS = 30;
 const TOTAL_DAYS = 365;
 
 const DEFAULT_STATE = () => ({
-  people: [],   // [{ id, name }]
+  people: [],   // [{ id, name, since: "YYYY-MM-DD" }]
   entries: [],  // [{ id, personId, date: "YYYY-MM-DD", reps }]
   // Day-completed check-ins: { [personId]: { "YYYY-MM-DD": true } }
   checkins: {},
+  // Penalty payments recorded against what people owe: [{ id, personId, amount, date, note }]
+  payments: [],
   // Weekly plan: week 1 asks weekBase reps/person/day; every later week adds weekStep.
-  config: { start: todayStr(), weekBase: 20, weekStep: 5 },
+  // penalty: $ owed for each missed (non-Sunday, in-window) day with no check-in.
+  config: { start: todayStr(), weekBase: 20, weekStep: 5, penalty: 20 },
 });
 
 // Roster, alphabetical. Seeded on first run (or into an untouched save).
@@ -20,9 +23,13 @@ const SEED_PEOPLE = [
   "Jim", "Johnny", "Jorge", "Kati", "Mo", "Ozzy", "Rafael", "Simon", "Vince",
 ];
 
+function seedRoster(startDate) {
+  return SEED_PEOPLE.map((name) => ({ id: uid(), name, since: startDate }));
+}
+
 function seededState() {
   const s = DEFAULT_STATE();
-  s.people = SEED_PEOPLE.map((name) => ({ id: uid(), name }));
+  s.people = seedRoster(s.config.start);
   return s;
 }
 
@@ -40,6 +47,7 @@ function load() {
     const merged = { ...base, ...parsed };
     merged.config = { ...base.config, ...(parsed.config || {}) };
     merged.checkins = parsed.checkins && typeof parsed.checkins === "object" ? parsed.checkins : {};
+    merged.payments = Array.isArray(parsed.payments) ? parsed.payments : [];
     // Migrate the old { goal: { start } } shape.
     if (!parsed.config && parsed.goal && parsed.goal.start) {
       merged.config.start = parsed.goal.start;
@@ -51,7 +59,11 @@ function load() {
       merged.entries.length === 0 &&
       Object.keys(merged.checkins).length === 0
     ) {
-      merged.people = SEED_PEOPLE.map((name) => ({ id: uid(), name }));
+      merged.people = seedRoster(merged.config.start);
+    }
+    // Back-fill "since" for older saves: treat them as founding members.
+    for (const p of merged.people) {
+      if (!p.since) p.since = merged.config.start;
     }
     return merged;
   } catch (err) {
@@ -98,6 +110,15 @@ function dailyTarget(week = challengeWeek()) {
 /** Per-person target that applied on a specific calendar date. */
 function dailyTargetForDate(dateStr) {
   return dailyTarget(challengeWeek(challengeDay(dateStr)));
+}
+
+/** Whose turn it is to design a given week's challenge — the roster rotates
+ *  in alphabetical order, wrapping around. */
+function weekCreator(weekNum) {
+  if (state.people.length === 0) return null;
+  const sorted = state.people.slice().sort((a, b) => a.name.localeCompare(b.name));
+  const i = ((weekNum - 1) % sorted.length + sorted.length) % sorted.length;
+  return sorted[i].name;
 }
 
 /** Sunday is a rest day — no activity, cells blocked out. */
@@ -202,6 +223,58 @@ function checkinStreak(personId) {
   return streak;
 }
 
+/* ---------- penalties ---------- */
+
+function penaltyPerDay() {
+  const p = Number(state.config.penalty);
+  return Number.isFinite(p) && p >= 0 ? p : 20;
+}
+
+/** The date penalties start counting for a person: their join date, or the
+ *  challenge start if that's later — whichever means they were "in". */
+function penaltyStartFor(personId) {
+  const person = state.people.find((p) => p.id === personId);
+  const since = person && person.since ? person.since : state.config.start;
+  return since > state.config.start ? since : state.config.start;
+}
+
+/** Past days (not today, not future) that were missed: in the challenge window,
+ *  not a Sunday, and with no check-in. */
+function missedDaysFor(personId) {
+  const today = todayStr();
+  const cur = new Date(penaltyStartFor(personId) + "T00:00:00");
+  const end = new Date(today + "T00:00:00"); // today is still open — not counted
+  let missed = 0;
+  while (cur < end) {
+    const ds = todayStr(cur);
+    const cd = challengeDay(ds);
+    if (cd >= 1 && cd <= TOTAL_DAYS && !isSunday(ds) && !isChecked(personId, ds)) {
+      missed += 1;
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+  return missed;
+}
+
+function owedBy(personId) {
+  return missedDaysFor(personId) * penaltyPerDay();
+}
+
+function paidBy(personId) {
+  return state.payments
+    .filter((p) => p.personId === personId)
+    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+}
+
+function outstandingBy(personId) {
+  return owedBy(personId) - paidBy(personId);
+}
+
+function money(n) {
+  const v = Math.round(Number(n) || 0);
+  return (v < 0 ? "-$" : "$") + fmt(Math.abs(v));
+}
+
 /* ---------- rendering ---------- */
 
 function render() {
@@ -210,6 +283,7 @@ function render() {
   renderTeamStats();
   renderTodayProgress();
   renderGrid();
+  renderPenalties();
   renderLeaderboard();
   renderChart();
   renderPeopleList();
@@ -222,12 +296,15 @@ function renderBanner() {
 
   if (day < 1) {
     const starts = 1 - day;
+    const firstCreator = weekCreator(1);
     el.className = "banner pre";
     el.innerHTML = `
       <div class="banner-top">Challenge starts in ${starts} day${starts === 1 ? "" : "s"}</div>
       <div class="banner-mission">Week 1 mission &middot; <strong>${fmt(dailyTarget(1))}</strong> push-ups per day</div>
       <div class="year-bar"><span style="width:0%"></span></div>
-      <div class="banner-sub">Day 1 is ${state.config.start}</div>`;
+      <div class="banner-sub">Day 1 is ${state.config.start}${
+        firstCreator ? ` &middot; ${escapeHtml(firstCreator)} designs week 1` : ""
+      }</div>`;
     return;
   }
 
@@ -245,7 +322,13 @@ function renderBanner() {
   const left = TOTAL_DAYS - day;
   const pct = (day / TOTAL_DAYS) * 100;
   const dayOfWeek = ((day - 1) % 7) + 1;
-  const nextTarget = dailyTarget(week + 1);
+  const thisCreator = weekCreator(week);
+  const nextCreator = weekCreator(week + 1);
+
+  const nextLine = nextCreator
+    ? `<strong>${escapeHtml(nextCreator)}</strong> designs next week's challenge`
+    : "add participants to set the rotation";
+  const thisLine = thisCreator ? ` &middot; this week by ${escapeHtml(thisCreator)}` : "";
 
   el.className = "banner";
   el.innerHTML = `
@@ -255,7 +338,7 @@ function renderBanner() {
     </div>
     <div class="banner-mission">Week ${week} mission &middot; <strong>${fmt(target)}</strong> push-ups per person, per day</div>
     <div class="year-bar"><span style="width:${pct.toFixed(2)}%"></span></div>
-    <div class="banner-sub">Day ${dayOfWeek} of 7 this week &middot; next week steps up to ${fmt(nextTarget)}/day</div>`;
+    <div class="banner-sub">Day ${dayOfWeek} of 7 this week &middot; ${nextLine}${thisLine}</div>`;
 }
 
 function renderPeopleSelects() {
@@ -290,6 +373,9 @@ function renderTeamStats() {
     const checked = state.people.filter((p) => isChecked(p.id, todayStr())).length;
     checkedInEl.textContent = `${checked}/${state.people.length}`;
   }
+
+  const outstanding = state.people.reduce((s, p) => s + Math.max(0, outstandingBy(p.id)), 0);
+  document.getElementById("stat-pot").textContent = money(outstanding);
 }
 
 function renderTodayProgress() {
@@ -367,6 +453,7 @@ function renderGrid() {
     body += `<tr><th class="name" scope="row" title="${escapeHtml(p.name)}">${escapeHtml(
       p.name
     )}</th>`;
+    const pStart = penaltyStartFor(p.id);
     for (const day of days) {
       if (day.sunday) {
         body += `<td class="blocked" aria-hidden="true"></td>`;
@@ -374,21 +461,29 @@ function renderGrid() {
       }
       const done = isChecked(p.id, day.ds);
       if (done) mtd++;
-      const clickable = day.inWindow && !day.future;
+      const clickable = day.inWindow && day.isToday; // only today can be edited
+      const past = day.inWindow && !day.future && !day.isToday;
+      const missed = past && !done && day.ds >= pStart;
       const cls = [
         "cell",
         done ? "done" : "",
         day.isToday ? "today-col" : "",
+        missed ? "missed" : "",
         clickable ? "" : "locked",
       ]
         .join(" ")
         .trim();
+      const title = missed
+        ? `${day.ds} · missed (${money(penaltyPerDay())})`
+        : done
+        ? `${day.ds} · done`
+        : day.ds;
       const attrs = clickable
         ? ` role="button" tabindex="0" data-person="${p.id}" data-date="${day.ds}" title="${escapeHtml(
             p.name
           )} · ${day.ds}"`
-        : ` title="${day.ds}"`;
-      body += `<td class="${cls}"${attrs}>${done ? "✓" : ""}</td>`;
+        : ` title="${title}"`;
+      body += `<td class="${cls}"${attrs}>${done ? "✓" : missed ? "✕" : ""}</td>`;
     }
     body += `<td class="mtd">${mtd}</td></tr>`;
   }
@@ -420,6 +515,84 @@ function shiftGridMonth(delta) {
   renderGrid();
 }
 
+function renderPenalties() {
+  const summary = document.getElementById("penalty-summary");
+  const tbody = document.getElementById("penalty-rows");
+  const payEl = document.getElementById("payments-list");
+  const paySelect = document.getElementById("pay-who");
+
+  const rows = state.people
+    .map((p) => {
+      const owed = owedBy(p.id);
+      const paid = paidBy(p.id);
+      return {
+        id: p.id,
+        name: p.name,
+        missed: missedDaysFor(p.id),
+        owed,
+        paid,
+        outstanding: owed - paid,
+      };
+    })
+    .sort((a, b) => b.outstanding - a.outstanding || a.name.localeCompare(b.name));
+
+  const totOwed = rows.reduce((s, r) => s + r.owed, 0);
+  const totPaid = rows.reduce((s, r) => s + r.paid, 0);
+  const totOut = rows.reduce((s, r) => s + Math.max(0, r.outstanding), 0);
+
+  summary.innerHTML =
+    `The pot: <strong>${money(totOwed)}</strong> owed &middot; ` +
+    `<strong>${money(totPaid)}</strong> collected &middot; ` +
+    `<strong class="out">${money(totOut)}</strong> outstanding ` +
+    `<span class="muted">(${money(penaltyPerDay())} per missed day)</span>`;
+
+  if (state.people.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="empty">No participants yet.</td></tr>`;
+  } else {
+    tbody.innerHTML = rows
+      .map(
+        (r) => `
+        <tr class="${r.outstanding > 0 ? "owes" : r.owed > 0 ? "settled" : ""}">
+          <td class="pt-name">${escapeHtml(r.name)}</td>
+          <td>${r.missed}</td>
+          <td>${money(r.owed)}</td>
+          <td>${money(r.paid)}</td>
+          <td class="pt-out">${money(r.outstanding)}</td>
+        </tr>`
+      )
+      .join("");
+  }
+
+  // payment recorder — participant dropdown
+  const prev = paySelect.value;
+  paySelect.innerHTML = state.people
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`)
+    .join("");
+  if (prev && state.people.some((p) => p.id === prev)) paySelect.value = prev;
+
+  // recent payments
+  const pays = state.payments
+    .slice()
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+    .slice(0, 30);
+  payEl.innerHTML = pays.length
+    ? pays
+        .map(
+          (p) => `
+        <li>
+          <span class="h-date">${p.date} · ${escapeHtml(personName(p.personId))}${
+            p.note ? " · " + escapeHtml(p.note) : ""
+          }</span>
+          <span class="h-reps">${money(p.amount)}</span>
+          <button class="h-del" data-payment="${p.id}" title="Delete this payment">✕</button>
+        </li>`
+        )
+        .join("")
+    : `<li class="empty">No payments recorded yet.</li>`;
+}
+
 function renderLeaderboard() {
   const el = document.getElementById("leaderboard");
   if (state.people.length === 0) {
@@ -435,6 +608,7 @@ function renderLeaderboard() {
       today: todayForPerson(p.id),
       checkedToday: isChecked(p.id, todayStr()),
       streak: checkinStreak(p.id),
+      outstanding: outstandingBy(p.id),
     }))
     .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
 
@@ -450,6 +624,7 @@ function renderLeaderboard() {
       if (target != null) parts.push(`${fmt(r.today)}/${fmt(target)} reps`);
       else if (r.today) parts.push(`+${fmt(r.today)} reps`);
       if (r.streak > 1) parts.push(`${r.streak}🔥`);
+      if (r.outstanding > 0) parts.push(`owes ${money(r.outstanding)}`);
       return `
       <li class="lb-row${r.checkedToday ? " hit" : ""}">
         <span class="lb-rank">${rank}</span>
@@ -574,7 +749,7 @@ function addPerson(name) {
     alert(`"${trimmed}" is already on the list.`);
     return;
   }
-  state.people.push({ id: uid(), name: trimmed });
+  state.people.push({ id: uid(), name: trimmed, since: todayStr() });
   save();
   render();
 }
@@ -589,6 +764,8 @@ function removePerson(id) {
   if (!confirm(msg)) return;
   state.people = state.people.filter((x) => x.id !== id);
   state.entries = state.entries.filter((e) => e.personId !== id);
+  state.payments = state.payments.filter((pm) => pm.personId !== id);
+  delete state.checkins[id];
   save();
   render();
 }
@@ -604,8 +781,12 @@ function addEntry(personId, reps, date) {
     return;
   }
   const d = date || todayStr();
+  if (d !== todayStr()) {
+    alert("You can only log for today — past days lock at midnight.");
+    return;
+  }
   state.entries.push({ id: uid(), personId, date: d, reps });
-  // Hitting the day's target auto-completes that day's check-in.
+  // Hitting the day's target auto-completes today's check-in.
   const cd = challengeDay(d);
   if (cd >= 1 && cd <= TOTAL_DAYS && !isSunday(d)) {
     const dayReps = repsFor((e) => e.personId === personId && e.date === d);
@@ -617,6 +798,33 @@ function addEntry(personId, reps, date) {
 
 function removeEntry(id) {
   state.entries = state.entries.filter((e) => e.id !== id);
+  save();
+  render();
+}
+
+function addPayment(personId, amount, note) {
+  amount = Math.round(Number(amount));
+  if (!personId || !state.people.some((p) => p.id === personId)) {
+    alert("Pick a participant.");
+    return;
+  }
+  if (!Number.isFinite(amount) || amount === 0) {
+    alert("Enter a payment amount (use a negative number to correct a mistake).");
+    return;
+  }
+  state.payments.push({
+    id: uid(),
+    personId,
+    amount,
+    date: todayStr(),
+    note: (note || "").trim(),
+  });
+  save();
+  render();
+}
+
+function removePayment(id) {
+  state.payments = state.payments.filter((p) => p.id !== id);
   save();
   render();
 }
@@ -643,6 +851,8 @@ function importJson(file) {
       const base = DEFAULT_STATE();
       state = { ...base, ...data, config: { ...base.config, ...(data.config || {}) } };
       if (!state.checkins || typeof state.checkins !== "object") state.checkins = {};
+      if (!Array.isArray(state.payments)) state.payments = [];
+      for (const p of state.people) if (!p.since) p.since = state.config.start;
       delete state.goal;
       save();
       render();
@@ -655,7 +865,14 @@ function importJson(file) {
 
 /* ---------- wire up ---------- */
 
-document.getElementById("date-input").value = todayStr();
+const dateInput = document.getElementById("date-input");
+function lockDateInputToToday() {
+  const t = todayStr();
+  dateInput.value = t;
+  dateInput.min = t;
+  dateInput.max = t;
+}
+lockDateInputToToday();
 
 document.getElementById("log-form").addEventListener("submit", (e) => {
   e.preventDefault();
@@ -693,6 +910,21 @@ document.getElementById("history").addEventListener("click", (e) => {
   if (btn) removeEntry(btn.dataset.entry);
 });
 
+/* penalties */
+document.getElementById("pay-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const who = document.getElementById("pay-who").value;
+  const amt = document.getElementById("pay-amount").value;
+  const note = document.getElementById("pay-note").value;
+  addPayment(who, amt, note);
+  document.getElementById("pay-amount").value = "";
+  document.getElementById("pay-note").value = "";
+});
+document.getElementById("payments-list").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-payment]");
+  if (btn) removePayment(btn.dataset.payment);
+});
+
 document.getElementById("chart-who").addEventListener("change", renderChart);
 document.getElementById("history-who").addEventListener("change", renderHistory);
 
@@ -721,6 +953,7 @@ const goalDialog = document.getElementById("goal-dialog");
 const cfgStart = document.getElementById("cfg-start");
 const cfgBase = document.getElementById("cfg-base");
 const cfgStep = document.getElementById("cfg-step");
+const cfgPenalty = document.getElementById("cfg-penalty");
 const cfgPreview = document.getElementById("cfg-preview");
 
 function updateCfgPreview() {
@@ -734,6 +967,7 @@ document.getElementById("edit-goal").addEventListener("click", () => {
   cfgStart.value = state.config.start;
   cfgBase.value = state.config.weekBase;
   cfgStep.value = state.config.weekStep;
+  cfgPenalty.value = penaltyPerDay();
   updateCfgPreview();
   goalDialog.showModal();
 });
@@ -744,11 +978,20 @@ goalDialog.querySelector("form").addEventListener("submit", (e) => {
   // The form uses method="dialog"; it still closes itself after this handler.
   const action = e.submitter ? e.submitter.value : goalDialog.returnValue;
   if (action !== "save") return;
+  const oldStart = state.config.start;
+  const newStart = cfgStart.value || todayStr();
   state.config = {
-    start: cfgStart.value || todayStr(),
+    start: newStart,
     weekBase: Math.max(1, Math.floor(Number(cfgBase.value)) || 1),
     weekStep: Math.max(0, Math.floor(Number(cfgStep.value)) || 0),
+    penalty: Math.max(0, Math.floor(Number(cfgPenalty.value)) || 0),
   };
+  // Founding members (joined on the old Day 1) follow the start date when it moves.
+  if (newStart !== oldStart) {
+    for (const p of state.people) {
+      if (!p.since || p.since === oldStart) p.since = newStart;
+    }
+  }
   save();
   render();
 });
@@ -791,5 +1034,18 @@ const HERO_LINES = [
   document.getElementById("hero-quote").textContent =
     "“" + HERO_LINES[day % HERO_LINES.length] + "”";
 })();
+
+/* When the date rolls over (midnight), yesterday locks and its misses become
+   penalties — re-render so an open tab stays correct. */
+let lastSeenDate = todayStr();
+setInterval(() => {
+  const t = todayStr();
+  if (t !== lastSeenDate) {
+    lastSeenDate = t;
+    lockDateInputToToday();
+    renderGrid._lastKey = null;
+    render();
+  }
+}, 30000);
 
 render();

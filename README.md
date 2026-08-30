@@ -7,17 +7,27 @@ saved to `localStorage` — no server, no build step.
 ## Features
 
 - **Mission banner** — current day (`Day 42 of 365`), days-left countdown, a year
-  progress bar, and this week's mission (push-ups per person, per day)
-- **Weekly progression** — Week 1 target + a fixed weekly increase, so every new
-  week asks for more. Configurable in **Settings**.
+  progress bar, this week's mission (push-ups per person, per day), and **whose
+  turn it is to design next week's challenge** (the roster rotates in
+  alphabetical order)
+- **Weekly progression** — Week 1 target + a fixed weekly increase. Configurable
+  in **Settings**; the person on rotation can bump it each week.
 - **Check-in grid** — participants down the left, calendar days across the top.
-  Tap a cell to mark the day you completed your push-ups. **Sundays are rest
-  days** and stay blocked out. Month navigation, a "days completed this month"
-  count per row, and it auto-scrolls to today. Hitting the day's rep target
-  auto-checks that day.
+  Tap **today's** cell when you finish your push-ups. **Sundays are rest days**
+  and stay blocked out. Month navigation, a "days completed this month" count per
+  row, and it auto-scrolls to today. Hitting the day's rep target auto-checks
+  today.
+- **Days lock at midnight** — only the current day is editable. When the date
+  rolls over, yesterday locks (even in an open tab) and any missed weekday
+  becomes a penalty. Logging reps is also today-only.
+- **Penalties** — a missed weekday (in-window, not Sunday, no check-in) costs a
+  configurable amount (default **$20**). The Penalties card shows per-person
+  missed days / owed / paid / outstanding, a team pot summary, and a form to
+  record payments. New participants only owe from the day they were added.
 - **Leaderboard** ranked by total reps, showing `done today`, `reps / target`,
-  and a check-in streak (🔥) that carries across Sundays
-- **Team stats** — total reps, participants, reps today, checked in today
+  a check-in streak (🔥) that carries across Sundays, and any amount owed
+- **Team stats** — total reps, participants, reps today, checked in today,
+  penalty pot
 - **Today's team progress** bar — team reps today vs `target × participants`
 - **30-day activity chart** with a dashed target line, filterable to one person
   or everyone
@@ -39,9 +49,11 @@ Then visit http://localhost:8000.
 
 Click **Settings** and set:
 
-- **Challenge start date** — this is Day 1
+- **Challenge start date** — this is Day 1. Founding members (added before Day 1)
+  follow this date automatically when you change it.
 - **Week 1 target** — push-ups per person, per day, in the first week
 - **Weekly increase** — reps/day added at the start of each new week
+- **Penalty per missed day ($)** — default 20
 
 Example: start `20`/day, `+5`/week → Week 2 is `25`/day, Week 13 is `80`/day,
 Week 52 is `275`/day. The preview in the dialog shows the ramp.
