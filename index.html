@@ -82,21 +82,21 @@
       </form>
       <ul id="payments-list" class="history"></ul>
 
-      <div class="gfm-block">
-        <h3>Pay up &mdash; Hammer Heads GoFundMe</h3>
+      <div class="payup-block">
+        <h3>Pay up &mdash; Venmo</h3>
         <p class="muted small">
-          The ledger above tracks who owes what. Actually move the money here.
+          The ledger above tracks who owes what. Settle it with Ozzy on Venmo &mdash; scan
+          the code or use the link.
         </p>
-        <div class="gfm-body">
-          <div class="gfm-embed" data-url="https://www.gofundme.com/f/support-the-hammer-heads-challenge/widget/large?attribution_id=sl%3A4ab9808e-5754-4aec-8799-8adefbdcb50e"></div>
-          <a class="gfm-qr" href="https://www.gofundme.com/f/support-the-hammer-heads-challenge" target="_blank" rel="noopener noreferrer">
-            <img src="assets/qr-code.png" alt="Scan to donate — Support the Hammer Heads Challenge on GoFundMe" />
+        <div class="payup-body">
+          <a class="payup-qr" href="https://venmo.com/u/Ozzy-Lane" target="_blank" rel="noopener noreferrer">
+            <img src="assets/venmo-qr.jpeg" alt="Venmo QR code for @Ozzy-Lane" />
           </a>
+          <p class="payup-link">
+            <a href="https://venmo.com/u/Ozzy-Lane" target="_blank" rel="noopener noreferrer">venmo.com/u/Ozzy-Lane</a>
+            <span class="muted">&mdash; put the participant's name in the note.</span>
+          </p>
         </div>
-        <p class="gfm-fallback">
-          <a href="https://www.gofundme.com/f/support-the-hammer-heads-challenge" target="_blank" rel="noopener noreferrer">Open the GoFundMe page &rarr;</a>
-          <span class="muted">(the embedded widget needs the app served over http/https &mdash; the QR always works)</span>
-        </p>
       </div>
     </section>
 
@@ -225,7 +225,6 @@
     </form>
   </dialog>
 
-  <script defer src="https://www.gofundme.com/static/js/embed.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -419,16 +419,14 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
 .ptable tr.settled td.pt-out { color: var(--good); }
 #penalty-summary .out { color: var(--accent); }
 
-.gfm-block { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 14px; }
-.gfm-block h3 { margin: 0 0 4px; font-size: 0.95rem; }
-.gfm-body { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
-.gfm-embed { flex: 1 1 260px; min-height: 80px; }
-.gfm-embed iframe { max-width: 100%; border-radius: 12px; display: block; }
-.gfm-qr { flex: 0 0 180px; display: block; }
-.gfm-qr img { width: 100%; height: auto; border-radius: 12px; display: block; }
-.gfm-fallback { margin-top: 8px; font-size: 0.8rem; display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
-.gfm-fallback a { color: var(--accent-2); font-weight: 600; }
-@media (max-width: 480px) { .gfm-qr { flex-basis: 100%; max-width: 240px; margin: 0 auto; } }
+.payup-block { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 14px; }
+.payup-block h3 { margin: 0 0 4px; font-size: 0.95rem; }
+.payup-body { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+.payup-qr { flex: 0 0 200px; display: block; border-radius: 12px; overflow: hidden; }
+.payup-qr img { width: 100%; height: auto; display: block; }
+.payup-link { flex: 1 1 180px; margin: 0; font-size: 0.85rem; }
+.payup-link a { color: var(--accent-2); font-weight: 600; }
+@media (max-width: 480px) { .payup-qr { flex-basis: 100%; max-width: 240px; margin: 0 auto; } }
 .pay-form { margin-bottom: 12px; }
 .pay-form select { flex: 1 1 130px; }
 .pay-form #pay-amount { flex: 0 1 110px; }

@@ -23,8 +23,8 @@ saved to `localStorage` — no server, no build step.
 - **Penalties** — a missed weekday (in-window, not Sunday, no check-in) costs a
   configurable amount (default **$20**). The Penalties card shows per-person
   missed days / owed / paid / outstanding, a team pot summary, a form to record
-  payments, and the team **GoFundMe** widget for actually collecting the money.
-  New participants only owe from the day they were added.
+  payments, and a **Venmo QR + link** for actually collecting the money. New
+  participants only owe from the day they were added.
 - **Leaderboard** ranked by total reps, showing `done today`, `reps / target`,
   a check-in streak (🔥) that carries across Sundays, and any amount owed
 - **Quitting** — the "Ring the quitter's bell" card at the bottom. Pick your
@@ -77,14 +77,12 @@ hides the hero frame and the watermark — everything else works normally.
 Tune the watermark strength via `opacity` in the `body::after` rule in
 `styles.css` (currently `0.05`).
 
-## Third-party embed
+## Collecting penalties
 
-The Penalties card embeds the team GoFundMe via `www.gofundme.com/static/js/embed.js`
-— the **only** external request the app makes. It needs the app served over
-http/https (not `file://`); a plain text link to the campaign always works as a
-fallback. To change the campaign, edit the `data-url` on `.gfm-embed` in
-`index.html`. To remove it, delete the `.gfm-block` div and the `embed.js`
-`<script>` tag.
+The Penalties card shows `assets/venmo-qr.jpeg` (Venmo QR for `@Ozzy-Lane`) and a
+link to `venmo.com/u/Ozzy-Lane`. To point it elsewhere, swap that image and edit
+the two `href`s in the `.payup-block` in `index.html`. The app makes **no**
+external requests — everything is local.
 
 ## Data
 
