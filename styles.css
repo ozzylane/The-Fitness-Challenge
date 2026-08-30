@@ -29,7 +29,7 @@ body::after {
   inset: 0;
   z-index: 9000;
   pointer-events: none;
-  background: url("assets/warrior.jpg") no-repeat center 42%;
+  background: url("assets/Warrior.jpeg") no-repeat center 42%;
   background-size: min(82vh, 600px);
   opacity: 0.05;
   filter: grayscale(0.4) contrast(1.1);
