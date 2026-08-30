@@ -422,11 +422,18 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
 .payup-block { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 14px; }
 .payup-block h3 { margin: 0 0 4px; font-size: 0.95rem; }
 .payup-body { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
-.payup-qr { flex: 0 0 200px; display: block; border-radius: 12px; overflow: hidden; }
-.payup-qr img { width: 100%; height: auto; display: block; }
-.payup-link { flex: 1 1 180px; margin: 0; font-size: 0.85rem; }
-.payup-link a { color: var(--accent-2); font-weight: 600; }
-@media (max-width: 480px) { .payup-qr { flex-basis: 100%; max-width: 240px; margin: 0 auto; } }
+.payup-qr {
+  flex: 0 0 auto;
+  display: block;
+  width: 180px;
+  max-width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.payup-qr img { display: block; width: 100%; height: auto; }
+.payup-link { flex: 1 1 180px; min-width: 0; margin: 0; font-size: 0.85rem; }
+.payup-link a { color: var(--accent-2); font-weight: 600; word-break: break-all; }
+@media (max-width: 480px) { .payup-qr { margin: 0 auto; } }
 .pay-form { margin-bottom: 12px; }
 .pay-form select { flex: 1 1 130px; }
 .pay-form #pay-amount { flex: 0 1 110px; }
