@@ -1,4 +1,4 @@
-/* The Push-Up Challenge — local, 365-day progressive group tracker.
+/* The Fitness Challenge — local, 365-day progressive group tracker.
  * State lives in localStorage under STORAGE_KEY. No network calls. */
 
 const STORAGE_KEY = "pushup-challenge:v1";
@@ -910,7 +910,7 @@ function importJson(file) {
     try {
       const data = JSON.parse(reader.result);
       if (!Array.isArray(data.people) || !Array.isArray(data.entries)) {
-        throw new Error("File doesn't look like a Push-Up Challenge export.");
+        throw new Error("File doesn't look like a Fitness Challenge export.");
       }
       if (!confirm("Replace all current data with the imported file?")) return;
       const base = DEFAULT_STATE();
@@ -985,7 +985,7 @@ document.getElementById("quit-btn").addEventListener("click", () => {
     return;
   }
   const sure = confirm(
-    `Are you sure you want to QUIT The Push-Up Challenge?\n\n` +
+    `Are you sure you want to QUIT The Fitness Challenge?\n\n` +
       `This is permanent. "${person.name}" stays on the board marked DROPPED OUT, ` +
       `and any penalties owed up to today still stand.`
   );
@@ -997,7 +997,7 @@ document.getElementById("quit-btn").addEventListener("click", () => {
     return;
   }
   quitPerson(id);
-  alert(`${person.name} has dropped out of The Push-Up Challenge.`);
+  alert(`${person.name} has dropped out of The Fitness Challenge.`);
 });
 
 document.getElementById("history").addEventListener("click", (e) => {

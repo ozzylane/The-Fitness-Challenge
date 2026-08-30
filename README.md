@@ -1,6 +1,6 @@
-# The Push-Up Challenge
+# The Fitness Challenge
 
-A tiny, no-dependencies web app for running a **365-day** group push-up challenge
+A tiny, no-dependencies web app for running a **365-day** group fitness challenge
 (~15 people) that gets harder every week. Everything runs in the browser and is
 saved to `localStorage` — no server, no build step.
 
