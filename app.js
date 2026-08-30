@@ -83,6 +83,133 @@ function seededState() {
 let state = load();
 save();
 
+/* ---------- shared backend (Supabase) ----------
+ * When supabase-config.js holds real values, all data reads/writes go to a
+ * shared Postgres DB so every visitor sees everyone's check-ins. Otherwise
+ * the app runs local-only against localStorage (current behaviour). */
+
+const SB_URL = String((typeof window !== "undefined" && window.SUPABASE_URL) || "").trim();
+const SB_KEY = String((typeof window !== "undefined" && window.SUPABASE_ANON_KEY) || "").trim();
+let SB = null;
+
+function hasBackend() {
+  return !!SB;
+}
+
+function initSupabase() {
+  const configured =
+    SB_URL && SB_KEY && !SB_URL.includes("YOUR-") && !SB_KEY.includes("YOUR-");
+  if (!configured) return null;
+  if (!window.supabase || !window.supabase.createClient) {
+    console.warn("supabase-js did not load; running local-only.");
+    return null;
+  }
+  try {
+    return window.supabase.createClient(SB_URL, SB_KEY, {
+      auth: { persistSession: false },
+    });
+  } catch (e) {
+    console.warn("Supabase init failed; running local-only.", e);
+    return null;
+  }
+}
+
+/** Pull the whole shared state from Supabase into our in-memory shape. */
+async function backendLoad() {
+  const [cfg, ppl, chk, pay] = await Promise.all([
+    SB.from("config").select("*").eq("id", 1).maybeSingle(),
+    SB.from("participants").select("id,name,since,quit_date"),
+    SB.from("checkins").select("participant_id,day"),
+    SB.from("payments").select("id,participant_id,amount,day,note"),
+  ]);
+  for (const r of [cfg, ppl, chk, pay]) if (r.error) throw r.error;
+
+  const config = cfg.data
+    ? { start: cfg.data.start_date, penalty: cfg.data.penalty }
+    : { start: CHALLENGE_START, penalty: 20 };
+
+  const people = (ppl.data || []).map((p) => {
+    const rec = { id: p.id, name: p.name, since: p.since };
+    if (p.quit_date) rec.quitDate = p.quit_date;
+    return rec;
+  });
+
+  const checkins = {};
+  for (const c of chk.data || []) {
+    if (!checkins[c.participant_id]) checkins[c.participant_id] = {};
+    checkins[c.participant_id][c.day] = true;
+  }
+
+  const payments = (pay.data || []).map((p) => ({
+    id: p.id,
+    personId: p.participant_id,
+    amount: p.amount,
+    date: p.day,
+    note: p.note || "",
+  }));
+
+  return { people, entries: [], checkins, payments, config };
+}
+
+let refreshTimer = null;
+async function backendRefresh() {
+  if (!hasBackend()) return;
+  try {
+    state = await backendLoad();
+    save(); // keep a local cache for instant paint / offline read
+    render();
+    setSyncStatus("synced");
+  } catch (e) {
+    console.warn("backend refresh failed", e);
+    setSyncStatus("offline");
+  }
+}
+
+function scheduleRefresh() {
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(backendRefresh, 250);
+}
+
+function subscribeRealtime() {
+  SB.channel("challenge")
+    .on("postgres_changes", { event: "*", schema: "public" }, scheduleRefresh)
+    .subscribe((status) => {
+      if (status === "SUBSCRIBED") setSyncStatus("synced");
+      else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT")
+        setSyncStatus("offline");
+    });
+}
+
+/** Report a failed write and pull the authoritative state back. */
+function syncFail(err) {
+  console.warn("shared-board write failed", err);
+  setSyncStatus("offline");
+  backendRefresh();
+}
+
+/** Fire a Supabase write and reconcile on error. `q` is a PostgREST builder. */
+function push(q) {
+  if (!hasBackend()) return Promise.resolve();
+  return Promise.resolve(q).then((r) => {
+    if (r && r.error) syncFail(r.error);
+    return r;
+  }, syncFail);
+}
+
+function setSyncStatus(kind) {
+  const el = document.getElementById("sync-status");
+  if (!el) return;
+  const map = {
+    connecting: ["connecting", "● Connecting to the shared board…"],
+    synced: ["synced", "● Shared board — everyone's check-ins, live"],
+    local: ["local", "● Local only — not shared (see SETUP.md)"],
+    offline: ["offline", "● Offline — your latest change may not be saved"],
+  };
+  const [cls, text] = map[kind] || map.local;
+  el.className = "sync-status " + cls;
+  el.textContent = text;
+}
+
 /* ---------- persistence ---------- */
 
 function load() {
@@ -208,9 +335,20 @@ function setCheckin(personId, dateStr, val) {
 }
 
 function toggleCheckin(personId, dateStr) {
-  setCheckin(personId, dateStr, !isChecked(personId, dateStr));
+  const want = !isChecked(personId, dateStr);
+  setCheckin(personId, dateStr, want);
   save();
   render();
+  if (hasBackend()) {
+    push(
+      want
+        ? SB.from("checkins").upsert(
+            { participant_id: personId, day: dateStr },
+            { onConflict: "participant_id,day", ignoreDuplicates: true }
+          )
+        : SB.from("checkins").delete().eq("participant_id", personId).eq("day", dateStr)
+    );
+  }
 }
 
 function checkinCount(personId, fromStr, toStr) {
@@ -764,25 +902,35 @@ function addPerson(name) {
     alert(`"${trimmed}" is already on the list.`);
     return;
   }
-  state.people.push({ id: uid(), name: trimmed, since: todayStr() });
-  save();
-  render();
+  const since = todayStr();
+  if (hasBackend()) {
+    push(
+      SB.from("participants").insert({ name: trimmed, since }).select("id,name,since").single()
+    ).then((r) => {
+      if (r && r.data) {
+        state.people.push({ id: r.data.id, name: r.data.name, since: r.data.since });
+        save();
+        render();
+      }
+    });
+  } else {
+    state.people.push({ id: uid(), name: trimmed, since });
+    save();
+    render();
+  }
 }
 
 function removePerson(id) {
   const p = state.people.find((x) => x.id === id);
   if (!p) return;
-  const count = state.entries.filter((e) => e.personId === id).length;
-  const msg = count
-    ? `Remove ${p.name} and their ${count} logged set(s)? This can't be undone.`
-    : `Remove ${p.name}?`;
-  if (!confirm(msg)) return;
+  if (!confirm(`Remove ${p.name} and everything they've logged? This can't be undone.`)) return;
   state.people = state.people.filter((x) => x.id !== id);
   state.entries = state.entries.filter((e) => e.personId !== id);
   state.payments = state.payments.filter((pm) => pm.personId !== id);
   delete state.checkins[id];
   save();
   render();
+  if (hasBackend()) push(SB.from("participants").delete().eq("id", id)); // FK cascades
 }
 
 function quitPerson(personId) {
@@ -791,6 +939,8 @@ function quitPerson(personId) {
   p.quitDate = todayStr();
   save();
   render();
+  if (hasBackend())
+    push(SB.from("participants").update({ quit_date: p.quitDate }).eq("id", personId));
 }
 
 function readmitPerson(personId) {
@@ -800,6 +950,8 @@ function readmitPerson(personId) {
   delete p.quitDate;
   save();
   render();
+  if (hasBackend())
+    push(SB.from("participants").update({ quit_date: null }).eq("id", personId));
 }
 
 function addPayment(personId, amount, note) {
@@ -812,21 +964,35 @@ function addPayment(personId, amount, note) {
     alert("Enter a payment amount (use a negative number to correct a mistake).");
     return;
   }
-  state.payments.push({
-    id: uid(),
-    personId,
-    amount,
-    date: todayStr(),
-    note: (note || "").trim(),
-  });
-  save();
-  render();
+  const row = { participant_id: personId, amount, day: todayStr(), note: (note || "").trim() };
+  if (hasBackend()) {
+    push(SB.from("payments").insert(row).select("id,participant_id,amount,day,note").single()).then(
+      (r) => {
+        if (r && r.data) {
+          state.payments.push({
+            id: r.data.id,
+            personId: r.data.participant_id,
+            amount: r.data.amount,
+            date: r.data.day,
+            note: r.data.note || "",
+          });
+          save();
+          render();
+        }
+      }
+    );
+  } else {
+    state.payments.push({ id: uid(), personId, amount, date: row.day, note: row.note });
+    save();
+    render();
+  }
 }
 
 function removePayment(id) {
   state.payments = state.payments.filter((p) => p.id !== id);
   save();
   render();
+  if (hasBackend()) push(SB.from("payments").delete().eq("id", id));
 }
 
 function exportJson() {
@@ -840,11 +1006,18 @@ function exportJson() {
 }
 
 function importJson(file) {
+  if (hasBackend()) {
+    alert(
+      "This board is shared through Supabase — import is disabled so nobody wipes it by " +
+        "accident. To bulk-load data, use the Supabase dashboard."
+    );
+    return;
+  }
   const reader = new FileReader();
   reader.onload = () => {
     try {
       const data = JSON.parse(reader.result);
-      if (!Array.isArray(data.people) || !Array.isArray(data.entries)) {
+      if (!Array.isArray(data.people)) {
         throw new Error("File doesn't look like a Fitness Challenge export.");
       }
       if (!confirm("Replace all current data with the imported file?")) return;
@@ -852,6 +1025,7 @@ function importJson(file) {
       state = { ...base, ...data, config: { ...base.config, ...(data.config || {}) } };
       if (!state.checkins || typeof state.checkins !== "object") state.checkins = {};
       if (!Array.isArray(state.payments)) state.payments = [];
+      if (!Array.isArray(state.entries)) state.entries = [];
       for (const p of state.people) if (!p.since) p.since = state.config.start;
       delete state.goal;
       save();
@@ -965,13 +1139,21 @@ goalDialog.querySelector("form").addEventListener("submit", (e) => {
     penalty: Math.max(0, Math.floor(Number(cfgPenalty.value)) || 0),
   };
   // Founding members (joined on the old Day 1) follow the start date when it moves.
+  const moved = [];
   if (newStart !== oldStart) {
     for (const p of state.people) {
-      if (!p.since || p.since === oldStart) p.since = newStart;
+      if (!p.since || p.since === oldStart) {
+        p.since = newStart;
+        moved.push(p.id);
+      }
     }
   }
   save();
   render();
+  if (hasBackend()) {
+    push(SB.from("config").update({ start_date: newStart, penalty: state.config.penalty }).eq("id", 1));
+    for (const id of moved) push(SB.from("participants").update({ since: newStart }).eq("id", id));
+  }
 });
 
 /* data buttons */
@@ -984,6 +1166,13 @@ document.getElementById("import-file").addEventListener("change", (e) => {
   e.target.value = "";
 });
 document.getElementById("reset-btn").addEventListener("click", () => {
+  if (hasBackend()) {
+    alert(
+      "This board is shared — Reset is disabled here so nobody wipes it for everyone. " +
+        "Clear the tables from the Supabase dashboard if you really mean to."
+    );
+    return;
+  }
   if (!confirm("Erase all participants, sets, and challenge settings?")) return;
   state = DEFAULT_STATE();
   save();
@@ -1022,7 +1211,17 @@ setInterval(() => {
     lastSeenDate = t;
     renderGrid._lastKey = null;
     render();
+    if (hasBackend()) backendRefresh();
   }
 }, 30000);
 
 render();
+
+/* Connect to the shared board (if configured), then keep it live. */
+SB = initSupabase();
+if (hasBackend()) {
+  setSyncStatus("connecting");
+  backendRefresh().then(subscribeRealtime);
+} else {
+  setSyncStatus("local");
+}

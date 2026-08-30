@@ -51,6 +51,19 @@ body::after {
   border-bottom: 1px solid var(--border);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
 }
+
+/* shared-board connection status */
+.sync-status {
+  margin: -8px 0 16px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.sync-status:empty { display: none; }
+.sync-status.synced { color: var(--good); }
+.sync-status.connecting { color: var(--accent-2); }
+.sync-status.local { color: var(--muted); }
+.sync-status.offline { color: var(--accent); }
 .banner-top {
   display: flex;
   align-items: baseline;

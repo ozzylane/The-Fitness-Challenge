@@ -4,11 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>The Fitness Challenge</title>
-  <link rel="stylesheet" href="styles.css?v=6" />
+  <link rel="stylesheet" href="styles.css?v=7" />
 </head>
 <body>
   <div class="app">
     <section class="banner" id="banner"></section>
+    <p id="sync-status" class="sync-status" role="status"></p>
 
     <header class="header hero">
       <div class="hero-media">
@@ -196,6 +197,8 @@
     </form>
   </dialog>
 
-  <script src="app.js?v=6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+  <script src="supabase-config.js?v=7"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>

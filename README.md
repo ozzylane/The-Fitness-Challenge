@@ -1,8 +1,15 @@
 # The Fitness Challenge
 
-A tiny, no-dependencies web app for running a **365-day** group fitness challenge
-(~15 people) that gets harder every week. Everything runs in the browser and is
-saved to `localStorage` — no server, no build step.
+A small web app for running a **365-day** group fitness challenge (~17 people)
+that gets harder every week.
+
+- **Local mode** (default): pure HTML/CSS/JS, data in `localStorage`, no server.
+- **Shared mode**: host the static files on GitHub Pages and point
+  `supabase-config.js` at a free Supabase database — then everyone who opens the
+  link sees everyone's check-ins, updating live. No login; people pick their
+  name. See **[SETUP.md](SETUP.md)**.
+
+The status line under the banner tells you which mode you're in.
 
 ## The plan
 
@@ -48,8 +55,10 @@ current week is highlighted. The plan lives in `app.js` (`planForWeek`) — edit
   Participants list can undo it.
 - **Team stats** — workout days, participants (with dropped count), best streak,
   checked in today, penalty pot
+- **Shared board** (optional) — Supabase-backed; every visitor sees the same
+  data, live. Falls back to `localStorage` when not configured or offline.
 - **Motivation hero** image + watermark (see below)
-- **Export / Import JSON** to move the whole challenge between devices
+- **Export JSON** to back up the current state
 
 ## Run locally
 
@@ -59,7 +68,14 @@ Open `index.html` in a browser, or serve the folder:
 python3 -m http.server 8000
 ```
 
-Then visit http://localhost:8000.
+Then visit http://localhost:8000. It runs in local-only mode unless
+`supabase-config.js` has real values.
+
+## Hosting it for the group
+
+See **[SETUP.md](SETUP.md)** — GitHub Pages for the site, a free Supabase
+project for the shared data, `schema.sql` for the database. Setup is ~15 minutes
+and costs nothing.
 
 ## Setting up the challenge
 
