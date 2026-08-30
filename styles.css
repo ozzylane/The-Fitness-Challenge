@@ -1,0 +1,204 @@
+:root {
+  --bg: #0f1115;
+  --card: #1a1d24;
+  --card-2: #21252e;
+  --text: #e8eaed;
+  --muted: #9aa0aa;
+  --accent: #ff5a3c;
+  --accent-2: #ffb03a;
+  --good: #37c978;
+  --border: #2c313b;
+  --radius: 14px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.app {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 28px 18px 60px;
+}
+
+.header { text-align: center; margin-bottom: 22px; }
+.header h1 {
+  margin: 0;
+  font-size: 1.9rem;
+  letter-spacing: -0.02em;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.tagline { margin: 6px 0 0; color: var(--muted); font-size: 0.95rem; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  margin-bottom: 16px;
+}
+
+.card h2 { margin: 0 0 14px; font-size: 1.05rem; }
+
+.team-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  text-align: center;
+}
+.stat { display: flex; flex-direction: column; gap: 2px; }
+.stat-value { font-size: 1.6rem; font-weight: 700; }
+.stat-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+
+.goal-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+.goal-text { display: flex; flex-direction: column; }
+.muted { color: var(--muted); }
+.footer { text-align: center; font-size: 0.8rem; margin-top: 24px; }
+
+.progress {
+  height: 12px;
+  background: var(--card-2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.log-form { display: flex; gap: 8px; flex-wrap: wrap; }
+.log-form input[type="number"] { flex: 1 1 160px; }
+input, select {
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.95rem;
+}
+input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 0; }
+
+.btn {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { filter: brightness(1.08); }
+.btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+.btn-ghost:hover { color: var(--text); }
+.btn-ghost.danger:hover { color: var(--accent); border-color: var(--accent); }
+
+.quick-add { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.quick-add button {
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.quick-add button:hover { border-color: var(--accent); }
+
+.chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 120px;
+}
+.chart .bar {
+  flex: 1;
+  background: var(--card-2);
+  border-radius: 3px 3px 0 0;
+  min-height: 2px;
+  position: relative;
+}
+.chart .bar.has-value { background: linear-gradient(180deg, var(--accent-2), var(--accent)); }
+.chart .bar.today { outline: 2px solid var(--good); outline-offset: 1px; }
+
+.history-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.history-head h2 { margin: 0; }
+.history { list-style: none; margin: 0; padding: 0; }
+.history li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.history li:last-child { border-bottom: none; }
+.history .h-date { color: var(--muted); font-size: 0.9rem; }
+.history .h-reps { font-weight: 700; }
+.history .h-del {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 4px 8px;
+}
+.history .h-del:hover { color: var(--accent); }
+.empty { color: var(--muted); font-size: 0.9rem; padding: 8px 0; }
+
+dialog {
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px;
+  max-width: 360px;
+  width: 90%;
+}
+dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
+.goal-dialog-form { display: flex; flex-direction: column; gap: 14px; }
+.goal-dialog-form h2 { margin: 0; font-size: 1.1rem; }
+.goal-dialog-form label { display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; color: var(--muted); }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+
+.small { font-size: 0.82rem; }
+
+.log-form select { flex: 1 1 130px; }
+
+/* leaderboard */
+.leaderboard { list-style: none; margin: 0; padding: 0; }
+.lb-row {
+  display: grid;
+  grid-template-columns: 34px minmax(70px, 1fr) 2fr auto;
+  grid-template-areas: "rank name bar total" ". meta meta meta";
+  align-items: center;
+  gap: 6px 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.lb-row:last-child { border-bottom: none; }
+.lb-rank { grid-area: rank; text-align: center; font-weight: 700; }
+.lb-name { grid-area: name; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lb-bar { grid-area: bar; height: 8px; background: var(--card-2); border-radius: 999px; overflow: hidden; }
+.lb-bar span { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); border-radius: 999px; }
+.lb-total { grid-area: total; font-weight: 700; text-align: right; }
+.lb-meta { grid-area: meta; font-size: 0.78rem; }
+.lb-meta:empty { display: none; }
+
+.data-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+
+@media (max-width: 420px) {
+  .team-stats { grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .header h1 { font-size: 1.5rem; }
+  .lb-row { grid-template-columns: 28px 1fr auto; grid-template-areas: "rank name total" "bar bar bar" "meta meta meta"; }
+}

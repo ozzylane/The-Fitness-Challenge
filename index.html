@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Push-Up Challenge</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <h1>The Push-Up Challenge</h1>
+      <p class="tagline">Log every set. Climb the board. Hit the goal.</p>
+    </header>
+
+    <section class="card team-stats">
+      <div class="stat">
+        <span class="stat-value" id="stat-team-total">0</span>
+        <span class="stat-label">Team reps</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value" id="stat-participants">0</span>
+        <span class="stat-label">Participants</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value" id="stat-today-total">0</span>
+        <span class="stat-label">Reps today</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value" id="stat-days">0</span>
+        <span class="stat-label">Days in</span>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="goal-row">
+        <div class="goal-text">
+          <strong id="goal-headline">Team goal</strong>
+          <span id="goal-detail" class="muted"></span>
+        </div>
+        <button id="edit-goal" class="btn btn-ghost" type="button">Edit goal</button>
+      </div>
+      <div class="progress">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+    </section>
+
+    <section class="card log-card">
+      <h2>Log a set</h2>
+      <form id="log-form" class="log-form">
+        <select id="who-input" required></select>
+        <input
+          id="reps-input"
+          type="number"
+          min="1"
+          max="10000"
+          inputmode="numeric"
+          placeholder="Push-ups"
+          required
+        />
+        <input id="date-input" type="date" />
+        <button class="btn btn-primary" type="submit">Add</button>
+      </form>
+      <div class="quick-add" id="quick-add">
+        <button type="button" data-reps="10">+10</button>
+        <button type="button" data-reps="20">+20</button>
+        <button type="button" data-reps="25">+25</button>
+        <button type="button" data-reps="50">+50</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Leaderboard</h2>
+      <ol id="leaderboard" class="leaderboard"></ol>
+    </section>
+
+    <section class="card">
+      <div class="history-head">
+        <h2 id="chart-title">Last 30 days</h2>
+        <select id="chart-who"></select>
+      </div>
+      <div id="chart" class="chart"></div>
+    </section>
+
+    <section class="card">
+      <div class="history-head">
+        <h2>Participants</h2>
+      </div>
+      <form id="add-person-form" class="log-form">
+        <input id="person-name" type="text" maxlength="40" placeholder="Add a participant" required />
+        <button class="btn btn-primary" type="submit">Add</button>
+      </form>
+      <ul id="people-list" class="history"></ul>
+    </section>
+
+    <section class="card">
+      <div class="history-head">
+        <h2 id="history-title">Recent activity</h2>
+        <select id="history-who"></select>
+      </div>
+      <ul id="history" class="history"></ul>
+    </section>
+
+    <section class="card data-card">
+      <h2>Data</h2>
+      <p class="muted small">Everything is stored in this browser only. Use export/import to move the challenge between devices.</p>
+      <div class="data-actions">
+        <button id="export-btn" class="btn btn-ghost" type="button">Export JSON</button>
+        <button id="import-btn" class="btn btn-ghost" type="button">Import JSON</button>
+        <button id="reset-btn" class="btn btn-ghost danger" type="button">Reset everything</button>
+      </div>
+      <input id="import-file" type="file" accept="application/json,.json" hidden />
+    </section>
+
+    <footer class="footer muted small">The Push-Up Challenge &middot; local browser app</footer>
+  </div>
+
+  <dialog id="goal-dialog">
+    <form method="dialog" class="goal-dialog-form">
+      <h2>Challenge goal</h2>
+      <label>
+        Goal type
+        <select id="goal-type">
+          <option value="team-total">Team total reps</option>
+          <option value="per-person-total">Reps per person</option>
+          <option value="per-person-daily">Reps per person per day</option>
+        </select>
+      </label>
+      <label>
+        Target amount
+        <input id="goal-amount" type="number" min="1" max="10000000" required />
+      </label>
+      <label>
+        Challenge start date
+        <input id="goal-start" type="date" />
+      </label>
+      <div class="dialog-actions">
+        <button value="cancel" class="btn btn-ghost" type="submit">Cancel</button>
+        <button value="save" class="btn btn-primary" type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
