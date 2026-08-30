@@ -6,17 +6,22 @@ saved to `localStorage` — no server, no build step.
 
 ## Features
 
-- **Sticky mission banner** — current day (`Day 42 of 365`), days-left countdown,
-  a year progress bar, and this week's mission (push-ups per person, per day)
+- **Mission banner** — current day (`Day 42 of 365`), days-left countdown, a year
+  progress bar, and this week's mission (push-ups per person, per day)
 - **Weekly progression** — Week 1 target + a fixed weekly increase, so every new
   week asks for more. Configurable in **Settings**.
-- **Leaderboard** ranked by total reps, showing each person's `today / target`
-  and a ✓ when they've hit today's number, plus day-streak
-- **Team stats** — total reps, participants, reps today, and how many people are
-  on target today
+- **Check-in grid** — participants down the left, calendar days across the top.
+  Tap a cell to mark the day you completed your push-ups. **Sundays are rest
+  days** and stay blocked out. Month navigation, a "days completed this month"
+  count per row, and it auto-scrolls to today. Hitting the day's rep target
+  auto-checks that day.
+- **Leaderboard** ranked by total reps, showing `done today`, `reps / target`,
+  and a check-in streak (🔥) that carries across Sundays
+- **Team stats** — total reps, participants, reps today, checked in today
 - **Today's team progress** bar — team reps today vs `target × participants`
 - **30-day activity chart** with a dashed target line, filterable to one person
   or everyone
+- **Motivation hero** image at the top (see below)
 - Add / remove participants; recent-activity feed with delete
 - **Export / Import JSON** to move the whole challenge between devices
 
@@ -40,6 +45,12 @@ Click **Settings** and set:
 
 Example: start `20`/day, `+5`/week → Week 2 is `25`/day, Week 13 is `80`/day,
 Week 52 is `275`/day. The preview in the dialog shows the ramp.
+
+## Motivation image
+
+The header shows `assets/warrior.jpg`. Drop your image in at that path (JPG or
+PNG — if PNG, update the `src` in `index.html`). If the file is missing the app
+just hides the image frame and shows the title normally.
 
 ## Data
 

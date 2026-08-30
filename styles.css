@@ -27,15 +27,11 @@ body {
   padding: 28px 18px 60px;
 }
 
-/* sticky mission banner */
+/* mission banner */
 .banner {
-  position: sticky;
-  top: 0;
-  z-index: 20;
   margin: -28px -18px 20px;
   padding: 16px 18px 14px;
   background: rgba(15, 17, 21, 0.92);
-  backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--border);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
 }
@@ -96,6 +92,38 @@ body {
   color: transparent;
 }
 .tagline { margin: 6px 0 0; color: var(--muted); font-size: 0.95rem; }
+
+/* motivation hero */
+.hero {
+  position: relative;
+  text-align: left;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  min-height: 260px;
+  display: flex;
+  align-items: flex-end;
+}
+.hero-media { position: absolute; inset: 0; z-index: 0; }
+.hero-media img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 35%; display: block; }
+.hero-text {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  padding: 40px 20px 18px;
+  background: linear-gradient(to top, rgba(10, 11, 14, 0.92) 12%, rgba(10, 11, 14, 0.55) 55%, rgba(10, 11, 14, 0) 100%);
+}
+.hero-text h1 { font-size: 2rem; }
+.hero .tagline { font-size: 1rem; }
+.hero-quote {
+  margin: 8px 0 0;
+  font-style: italic;
+  color: var(--accent-2);
+  font-size: 0.9rem;
+}
+/* fallback when assets/warrior.jpg is absent */
+.hero.no-media { min-height: 0; text-align: center; border: none; }
+.hero.no-media .hero-text { padding: 8px 0; background: none; }
 
 .card {
   background: var(--card);
@@ -275,8 +303,91 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
 
 .data-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 
+/* check-in grid */
+.month-nav { display: flex; align-items: center; gap: 6px; }
+.month-nav .btn { padding: 6px 10px; }
+#month-label { font-weight: 700; min-width: 130px; text-align: center; }
+
+.grid-scroll {
+  overflow: auto;
+  max-height: 72vh;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  -webkit-overflow-scrolling: touch;
+}
+.checkgrid {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.78rem;
+}
+.checkgrid th,
+.checkgrid td {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  text-align: center;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 0;
+}
+.checkgrid thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--card-2);
+  color: var(--muted);
+}
+.checkgrid thead th .dnum { display: block; font-weight: 700; line-height: 1.1; color: var(--text); }
+.checkgrid thead th .dow { display: block; font-size: 0.58rem; line-height: 1.2; }
+.checkgrid thead th.corner,
+.checkgrid tbody th.name {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--card);
+  text-align: left;
+  padding: 0 10px;
+  min-width: 116px;
+  max-width: 150px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.checkgrid thead th.corner { z-index: 4; color: var(--text); }
+.checkgrid tbody th.name { font-weight: 600; }
+.checkgrid tbody tr:hover th.name { color: var(--accent-2); }
+
+.checkgrid td.cell { cursor: pointer; color: var(--good); font-weight: 800; }
+.checkgrid td.cell:hover { background: var(--card-2); }
+.checkgrid td.cell.done { background: rgba(55, 201, 120, 0.20); }
+.checkgrid td.cell.done:hover { background: rgba(55, 201, 120, 0.30); }
+.checkgrid td.cell.locked {
+  cursor: default;
+  color: transparent;
+  background: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(255, 255, 255, 0.03) 5px, rgba(255, 255, 255, 0.03) 10px);
+}
+.checkgrid .blocked {
+  background: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.02) 5px, rgba(255, 255, 255, 0.07) 5px, rgba(255, 255, 255, 0.07) 10px);
+  color: var(--muted);
+}
+.checkgrid .today-col { box-shadow: inset 0 0 0 2px var(--accent-2); }
+.checkgrid td.mtd,
+.checkgrid th.mtd {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background: var(--card);
+  font-weight: 700;
+  color: var(--muted);
+}
+.checkgrid th.mtd { z-index: 4; background: var(--card-2); }
+.checkgrid td.cell:focus-visible { outline: 2px solid var(--accent-2); outline-offset: -2px; }
+.checkgrid .empty { padding: 16px; }
+
 @media (max-width: 420px) {
   .team-stats { grid-template-columns: repeat(2, 1fr); gap: 14px; }
   .header h1 { font-size: 1.5rem; }
   .lb-row { grid-template-columns: 28px 1fr auto; grid-template-areas: "rank name total" "bar bar bar" "meta meta meta"; }
+  .hero-text h1 { font-size: 1.6rem; }
+  .checkgrid thead th.corner, .checkgrid tbody th.name { min-width: 92px; max-width: 110px; }
 }

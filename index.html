@@ -10,9 +10,15 @@
   <div class="app">
     <section class="banner" id="banner"></section>
 
-    <header class="header">
-      <h1>The Push-Up Challenge</h1>
-      <p class="tagline">365 days. Harder every week. Don't break the chain.</p>
+    <header class="header hero">
+      <div class="hero-media">
+        <img id="hero-img" src="assets/warrior.jpg" alt="" />
+      </div>
+      <div class="hero-text">
+        <h1>The Push-Up Challenge</h1>
+        <p class="tagline">365 days. Harder every week. Forge the warrior.</p>
+        <p class="hero-quote" id="hero-quote"></p>
+      </div>
     </header>
 
     <section class="card team-stats">
@@ -29,8 +35,27 @@
         <span class="stat-label">Reps today</span>
       </div>
       <div class="stat">
-        <span class="stat-value" id="stat-ontarget">&mdash;</span>
-        <span class="stat-label">On target today</span>
+        <span class="stat-value" id="stat-checkedin">&mdash;</span>
+        <span class="stat-label">Checked in today</span>
+      </div>
+    </section>
+
+    <section class="card grid-card">
+      <div class="history-head">
+        <h2>Check-in grid</h2>
+        <div class="month-nav">
+          <button id="month-prev" class="btn btn-ghost" type="button" aria-label="Previous month">&lsaquo;</button>
+          <span id="month-label">&nbsp;</span>
+          <button id="month-next" class="btn btn-ghost" type="button" aria-label="Next month">&rsaquo;</button>
+          <button id="month-today" class="btn btn-ghost" type="button">Today</button>
+        </div>
+      </div>
+      <p class="muted small">
+        Tap your row on the day you finished your push-ups. Sundays are rest days and stay blocked.
+        Anyone on this device checks in on their own row.
+      </p>
+      <div class="grid-scroll">
+        <table class="checkgrid" id="checkgrid"></table>
       </div>
     </section>
 

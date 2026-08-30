@@ -8,6 +8,8 @@ const TOTAL_DAYS = 365;
 const DEFAULT_STATE = () => ({
   people: [],   // [{ id, name }]
   entries: [],  // [{ id, personId, date: "YYYY-MM-DD", reps }]
+  // Day-completed check-ins: { [personId]: { "YYYY-MM-DD": true } }
+  checkins: {},
   // Weekly plan: week 1 asks weekBase reps/person/day; every later week adds weekStep.
   config: { start: todayStr(), weekBase: 20, weekStep: 5 },
 });
@@ -24,6 +26,7 @@ function load() {
     const base = DEFAULT_STATE();
     const merged = { ...base, ...parsed };
     merged.config = { ...base.config, ...(parsed.config || {}) };
+    merged.checkins = parsed.checkins && typeof parsed.checkins === "object" ? parsed.checkins : {};
     // Migrate the old { goal: { start } } shape.
     if (!parsed.config && parsed.goal && parsed.goal.start) {
       merged.config.start = parsed.goal.start;
@@ -71,6 +74,24 @@ function dailyTarget(week = challengeWeek()) {
   return state.config.weekBase + (Math.max(1, week) - 1) * state.config.weekStep;
 }
 
+/** Per-person target that applied on a specific calendar date. */
+function dailyTargetForDate(dateStr) {
+  return dailyTarget(challengeWeek(challengeDay(dateStr)));
+}
+
+/** Sunday is a rest day — no activity, cells blocked out. */
+function isSunday(dateStr) {
+  return new Date(dateStr + "T00:00:00").getDay() === 0;
+}
+
+function ymd(year, monthIdx, day) {
+  return `${year}-${String(monthIdx + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function daysInMonth(year, monthIdx) {
+  return new Date(year, monthIdx + 1, 0).getDate();
+}
+
 function isActive(day = challengeDay()) {
   return day >= 1 && day <= TOTAL_DAYS;
 }
@@ -114,6 +135,52 @@ function personName(id) {
   return p ? p.name : "(removed)";
 }
 
+/* ---------- check-ins ---------- */
+
+function isChecked(personId, dateStr) {
+  return !!(state.checkins[personId] && state.checkins[personId][dateStr]);
+}
+
+function setCheckin(personId, dateStr, val) {
+  if (val) {
+    if (!state.checkins[personId]) state.checkins[personId] = {};
+    state.checkins[personId][dateStr] = true;
+  } else if (state.checkins[personId]) {
+    delete state.checkins[personId][dateStr];
+    if (Object.keys(state.checkins[personId]).length === 0) delete state.checkins[personId];
+  }
+}
+
+function toggleCheckin(personId, dateStr) {
+  setCheckin(personId, dateStr, !isChecked(personId, dateStr));
+  save();
+  render();
+}
+
+function checkinCount(personId, fromStr, toStr) {
+  const days = state.checkins[personId] || {};
+  return Object.keys(days).filter((d) => d >= fromStr && d <= toStr).length;
+}
+
+/** Consecutive completed days ending today; Sundays are skipped, not counted. */
+function checkinStreak(personId) {
+  const cur = new Date(todayStr() + "T00:00:00");
+  const back = () => cur.setDate(cur.getDate() - 1);
+  if (cur.getDay() === 0) back();
+  if (!isChecked(personId, todayStr(cur))) {
+    back();
+    if (cur.getDay() === 0) back();
+  }
+  let streak = 0;
+  while (challengeDay(todayStr(cur)) >= 1) {
+    if (cur.getDay() === 0) { back(); continue; }
+    if (!isChecked(personId, todayStr(cur))) break;
+    streak += 1;
+    back();
+  }
+  return streak;
+}
+
 /* ---------- rendering ---------- */
 
 function render() {
@@ -121,6 +188,7 @@ function render() {
   renderBanner();
   renderTeamStats();
   renderTodayProgress();
+  renderGrid();
   renderLeaderboard();
   renderChart();
   renderPeopleList();
@@ -194,13 +262,12 @@ function renderTeamStats() {
   document.getElementById("stat-participants").textContent = state.people.length;
   document.getElementById("stat-today-total").textContent = fmt(repsFor((e) => e.date === todayStr()));
 
-  const target = targetNow();
-  const onTargetEl = document.getElementById("stat-ontarget");
-  if (target == null || state.people.length === 0) {
-    onTargetEl.textContent = "—";
+  const checkedInEl = document.getElementById("stat-checkedin");
+  if (state.people.length === 0) {
+    checkedInEl.textContent = "—";
   } else {
-    const hit = state.people.filter((p) => todayForPerson(p.id) >= target).length;
-    onTargetEl.textContent = `${hit}/${state.people.length}`;
+    const checked = state.people.filter((p) => isChecked(p.id, todayStr())).length;
+    checkedInEl.textContent = `${checked}/${state.people.length}`;
   }
 }
 
@@ -223,6 +290,115 @@ function renderTodayProgress() {
   fill.style.width = pct.toFixed(1) + "%";
 }
 
+/* Month being shown in the check-in grid (not persisted). */
+let gridYear, gridMonth;
+(function initGridMonth() {
+  const t = todayStr();
+  gridYear = Number(t.slice(0, 4));
+  gridMonth = Number(t.slice(5, 7)) - 1;
+})();
+
+function renderGrid() {
+  const table = document.getElementById("checkgrid");
+  const label = document.getElementById("month-label");
+  label.textContent = new Date(gridYear, gridMonth, 1).toLocaleDateString(undefined, {
+    month: "long",
+    year: "numeric",
+  });
+
+  if (state.people.length === 0) {
+    table.innerHTML = `<tbody><tr><td class="empty">Add participants to build the grid.</td></tr></tbody>`;
+    return;
+  }
+
+  const today = todayStr();
+  const dowLetter = ["Su", "M", "T", "W", "T", "F", "S"];
+  const n = daysInMonth(gridYear, gridMonth);
+  const days = [];
+  for (let d = 1; d <= n; d++) {
+    const ds = ymd(gridYear, gridMonth, d);
+    const dow = new Date(gridYear, gridMonth, d).getDay();
+    const cd = challengeDay(ds);
+    days.push({
+      d,
+      ds,
+      dow,
+      sunday: dow === 0,
+      future: ds > today,
+      inWindow: cd >= 1 && cd <= TOTAL_DAYS,
+      isToday: ds === today,
+    });
+  }
+
+  let head = `<thead><tr><th class="corner">Participant</th>`;
+  for (const day of days) {
+    const cls = [day.sunday ? "blocked" : "", day.isToday ? "today-col" : ""].join(" ").trim();
+    head += `<th class="${cls}"><span class="dnum">${day.d}</span><span class="dow">${
+      dowLetter[day.dow]
+    }</span></th>`;
+  }
+  head += `<th class="mtd" title="Days completed this month">✓</th></tr></thead>`;
+
+  const people = state.people.slice().sort((a, b) => a.name.localeCompare(b.name));
+  let body = "<tbody>";
+  for (const p of people) {
+    let mtd = 0;
+    body += `<tr><th class="name" scope="row" title="${escapeHtml(p.name)}">${escapeHtml(
+      p.name
+    )}</th>`;
+    for (const day of days) {
+      if (day.sunday) {
+        body += `<td class="blocked" aria-hidden="true"></td>`;
+        continue;
+      }
+      const done = isChecked(p.id, day.ds);
+      if (done) mtd++;
+      const clickable = day.inWindow && !day.future;
+      const cls = [
+        "cell",
+        done ? "done" : "",
+        day.isToday ? "today-col" : "",
+        clickable ? "" : "locked",
+      ]
+        .join(" ")
+        .trim();
+      const attrs = clickable
+        ? ` role="button" tabindex="0" data-person="${p.id}" data-date="${day.ds}" title="${escapeHtml(
+            p.name
+          )} · ${day.ds}"`
+        : ` title="${day.ds}"`;
+      body += `<td class="${cls}"${attrs}>${done ? "✓" : ""}</td>`;
+    }
+    body += `<td class="mtd">${mtd}</td></tr>`;
+  }
+  body += "</tbody>";
+  table.innerHTML = head + body;
+
+  // Bring today into view when the month first opens (not on every check-in).
+  const key = gridYear + "-" + gridMonth;
+  if (key !== renderGrid._lastKey) {
+    renderGrid._lastKey = key;
+    const scroller = document.querySelector(".grid-scroll");
+    const todayCell = table.querySelector("tbody .today-col");
+    if (scroller && todayCell) {
+      scroller.scrollLeft = Math.max(0, todayCell.offsetLeft - scroller.clientWidth / 2);
+    }
+  }
+}
+
+function shiftGridMonth(delta) {
+  gridMonth += delta;
+  while (gridMonth < 0) {
+    gridMonth += 12;
+    gridYear -= 1;
+  }
+  while (gridMonth > 11) {
+    gridMonth -= 12;
+    gridYear += 1;
+  }
+  renderGrid();
+}
+
 function renderLeaderboard() {
   const el = document.getElementById("leaderboard");
   if (state.people.length === 0) {
@@ -232,10 +408,12 @@ function renderLeaderboard() {
   const target = targetNow();
   const rows = state.people
     .map((p) => ({
+      id: p.id,
       name: p.name,
       total: totalForPerson(p.id),
       today: todayForPerson(p.id),
-      streak: streakForPerson(p.id),
+      checkedToday: isChecked(p.id, todayStr()),
+      streak: checkinStreak(p.id),
     }))
     .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
 
@@ -246,21 +424,18 @@ function renderLeaderboard() {
     .map((r, i) => {
       const barPct = (r.total / max) * 100;
       const rank = medals[i] || `${i + 1}.`;
-      const hit = target != null && r.today >= target;
-      let meta;
-      if (target != null) {
-        meta = `${hit ? "✓ " : ""}${fmt(r.today)}/${fmt(target)} today`;
-      } else {
-        meta = r.today ? `+${fmt(r.today)} today` : "";
-      }
-      if (r.streak > 1) meta += ` · ${r.streak}d streak`;
+      const parts = [];
+      if (r.checkedToday) parts.push("✓ done today");
+      if (target != null) parts.push(`${fmt(r.today)}/${fmt(target)} reps`);
+      else if (r.today) parts.push(`+${fmt(r.today)} reps`);
+      if (r.streak > 1) parts.push(`${r.streak}🔥`);
       return `
-      <li class="lb-row${hit ? " hit" : ""}">
+      <li class="lb-row${r.checkedToday ? " hit" : ""}">
         <span class="lb-rank">${rank}</span>
         <span class="lb-name">${escapeHtml(r.name)}</span>
         <span class="lb-bar"><span style="width:${barPct}%"></span></span>
         <span class="lb-total">${fmt(r.total)}</span>
-        <span class="lb-meta muted">${meta}</span>
+        <span class="lb-meta muted">${parts.join(" · ")}</span>
       </li>`;
     })
     .join("");
@@ -407,7 +582,14 @@ function addEntry(personId, reps, date) {
     alert("Enter a rep count of 1 or more.");
     return;
   }
-  state.entries.push({ id: uid(), personId, date: date || todayStr(), reps });
+  const d = date || todayStr();
+  state.entries.push({ id: uid(), personId, date: d, reps });
+  // Hitting the day's target auto-completes that day's check-in.
+  const cd = challengeDay(d);
+  if (cd >= 1 && cd <= TOTAL_DAYS && !isSunday(d)) {
+    const dayReps = repsFor((e) => e.personId === personId && e.date === d);
+    if (dayReps >= dailyTargetForDate(d)) setCheckin(personId, d, true);
+  }
   save();
   render();
 }
@@ -439,6 +621,7 @@ function importJson(file) {
       if (!confirm("Replace all current data with the imported file?")) return;
       const base = DEFAULT_STATE();
       state = { ...base, ...data, config: { ...base.config, ...(data.config || {}) } };
+      if (!state.checkins || typeof state.checkins !== "object") state.checkins = {};
       delete state.goal;
       save();
       render();
@@ -492,6 +675,26 @@ document.getElementById("history").addEventListener("click", (e) => {
 document.getElementById("chart-who").addEventListener("change", renderChart);
 document.getElementById("history-who").addEventListener("change", renderHistory);
 
+/* check-in grid */
+function handleGridActivate(e) {
+  const cell = e.target.closest("td.cell[data-person]");
+  if (!cell) return;
+  if (e.type === "keydown" && e.key !== "Enter" && e.key !== " ") return;
+  e.preventDefault();
+  toggleCheckin(cell.dataset.person, cell.dataset.date);
+}
+document.getElementById("checkgrid").addEventListener("click", handleGridActivate);
+document.getElementById("checkgrid").addEventListener("keydown", handleGridActivate);
+document.getElementById("month-prev").addEventListener("click", () => shiftGridMonth(-1));
+document.getElementById("month-next").addEventListener("click", () => shiftGridMonth(1));
+document.getElementById("month-today").addEventListener("click", () => {
+  const t = todayStr();
+  gridYear = Number(t.slice(0, 4));
+  gridMonth = Number(t.slice(5, 7)) - 1;
+  renderGrid._lastKey = null; // force re-scroll to today
+  renderGrid();
+});
+
 /* settings dialog */
 const goalDialog = document.getElementById("goal-dialog");
 const cfgStart = document.getElementById("cfg-start");
@@ -544,5 +747,28 @@ document.getElementById("reset-btn").addEventListener("click", () => {
   save();
   render();
 });
+
+/* motivation hero: hide the frame if the image is missing, rotate a daily line */
+const heroImg = document.getElementById("hero-img");
+function hideHeroMedia() {
+  document.querySelector(".hero-media").style.display = "none";
+  document.querySelector(".hero").classList.add("no-media");
+}
+heroImg.addEventListener("error", hideHeroMedia);
+if (heroImg.complete && heroImg.naturalWidth === 0) hideHeroMedia();
+const HERO_LINES = [
+  "The spear is earned one rep at a time.",
+  "Show up on the days you don't feel like it.",
+  "Rest on Sunday. Hunt the other six.",
+  "Every checked box is armor.",
+  "The warrior isn't born on day 365 — he's built by day 12.",
+  "Weak reps still count. Skipped days don't.",
+  "Hold the line. The chain is watching.",
+];
+(function setHeroLine() {
+  const day = Math.max(1, challengeDay());
+  document.getElementById("hero-quote").textContent =
+    "“" + HERO_LINES[day % HERO_LINES.length] + "”";
+})();
 
 render();
