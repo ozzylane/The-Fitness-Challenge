@@ -14,14 +14,27 @@ const DEFAULT_STATE = () => ({
   config: { start: todayStr(), weekBase: 20, weekStep: 5 },
 });
 
+// Roster, alphabetical. Seeded on first run (or into an untouched save).
+const SEED_PEOPLE = [
+  "Adeeb", "Alen", "Antonio", "Blake", "Carlos", "Drew", "Eileen", "Jeff",
+  "Jim", "Johnny", "Jorge", "Kati", "Mo", "Ozzy", "Rafael", "Simon", "Vince",
+];
+
+function seededState() {
+  const s = DEFAULT_STATE();
+  s.people = SEED_PEOPLE.map((name) => ({ id: uid(), name }));
+  return s;
+}
+
 let state = load();
+save();
 
 /* ---------- persistence ---------- */
 
 function load() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_STATE();
+    if (!raw) return seededState();
     const parsed = JSON.parse(raw);
     const base = DEFAULT_STATE();
     const merged = { ...base, ...parsed };
@@ -32,10 +45,18 @@ function load() {
       merged.config.start = parsed.goal.start;
     }
     delete merged.goal;
+    // Seed the roster if this save has never had anything entered in it.
+    if (
+      merged.people.length === 0 &&
+      merged.entries.length === 0 &&
+      Object.keys(merged.checkins).length === 0
+    ) {
+      merged.people = SEED_PEOPLE.map((name) => ({ id: uid(), name }));
+    }
     return merged;
   } catch (err) {
     console.warn("Could not read saved data, starting fresh.", err);
-    return DEFAULT_STATE();
+    return seededState();
   }
 }
 
