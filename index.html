@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>The Fitness Challenge</title>
-  <link rel="stylesheet" href="styles.css?v=3" />
+  <link rel="stylesheet" href="styles.css?v=4" />
 </head>
 <body>
   <div class="app">
@@ -24,7 +24,7 @@
     <section class="card team-stats">
       <div class="stat">
         <span class="stat-value" id="stat-team-total">0</span>
-        <span class="stat-label">Team reps</span>
+        <span class="stat-label">Workout days</span>
       </div>
       <div class="stat">
         <span class="stat-value" id="stat-participants">0</span>
@@ -32,7 +32,7 @@
       </div>
       <div class="stat">
         <span class="stat-value" id="stat-today-total">0</span>
-        <span class="stat-label">Reps today</span>
+        <span class="stat-label">Best streak</span>
       </div>
       <div class="stat">
         <span class="stat-value" id="stat-checkedin">&mdash;</span>
@@ -41,6 +41,25 @@
       <div class="stat">
         <span class="stat-value" id="stat-pot">$0</span>
         <span class="stat-label">Penalty pot</span>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="history-head">
+        <h2>Full-year plan</h2>
+        <span class="muted small">Goal: 100 / 100 / 100 by week 52</span>
+      </div>
+      <p class="muted small">
+        Every week keeps last week's work and adds a little &mdash; progressing as slowly as
+        possible. This is the whole year; check what's coming.
+      </p>
+      <div class="grid-scroll plan-scroll">
+        <table class="plantable" id="year-plan">
+          <thead>
+            <tr><th>Week</th><th>Push-ups</th><th>Sit-ups</th><th>Squats</th><th>Total/day</th></tr>
+          </thead>
+          <tbody id="year-plan-rows"></tbody>
+        </table>
       </div>
     </section>
 
@@ -55,8 +74,8 @@
         </div>
       </div>
       <p class="muted small">
-        Tap your row on <strong>today</strong> when you finish your push-ups. Days lock at
-        midnight &mdash; a missed weekday (not Sunday) is a penalty. Sundays are rest days.
+        Tap your row on <strong>today</strong> when you finish the week's full workout. Days
+        lock at midnight &mdash; a missed weekday (not Sunday) is a penalty. Sundays are rest days.
       </p>
       <div class="grid-scroll">
         <table class="checkgrid" id="checkgrid"></table>
@@ -114,7 +133,11 @@
     </section>
 
     <section class="card log-card">
-      <h2>Log a set</h2>
+      <h2>Log your reps <span class="muted small">(optional)</span></h2>
+      <p class="muted small">
+        The check-in grid is the record that counts. This is just a tally &mdash; hit the day's
+        prescribed total and it checks you in automatically.
+      </p>
       <form id="log-form" class="log-form">
         <select id="who-input" required></select>
         <input
@@ -123,7 +146,7 @@
           min="1"
           max="10000"
           inputmode="numeric"
-          placeholder="Push-ups"
+          placeholder="Total reps"
           required
         />
         <input id="date-input" type="date" />
@@ -206,18 +229,10 @@
         <input id="cfg-start" type="date" />
       </label>
       <label>
-        Week 1 target &mdash; push-ups per person, per day
-        <input id="cfg-base" type="number" min="1" max="100000" required />
-      </label>
-      <label>
-        Weekly increase &mdash; reps/day added each new week
-        <input id="cfg-step" type="number" min="0" max="100000" required />
-      </label>
-      <label>
         Penalty per missed day ($)
         <input id="cfg-penalty" type="number" min="0" max="100000" required />
       </label>
-      <p class="muted small" id="cfg-preview"></p>
+      <p class="muted small">The weekly workout is fixed &mdash; see the full-year plan.</p>
       <div class="dialog-actions">
         <button value="cancel" class="btn btn-ghost" type="submit">Cancel</button>
         <button value="save" class="btn btn-primary" type="submit">Save</button>
@@ -225,6 +240,6 @@
     </form>
   </dialog>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>

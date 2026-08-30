@@ -4,6 +4,7 @@
 const STORAGE_KEY = "pushup-challenge:v1";
 const CHART_DAYS = 30;
 const TOTAL_DAYS = 365;
+const PLAN_WEEKS = 52;
 
 const DEFAULT_STATE = () => ({
   people: [],   // [{ id, name, since: "YYYY-MM-DD" }]
@@ -12,10 +13,56 @@ const DEFAULT_STATE = () => ({
   checkins: {},
   // Penalty payments recorded against what people owe: [{ id, personId, amount, date, note }]
   payments: [],
-  // Weekly plan: week 1 asks weekBase reps/person/day; every later week adds weekStep.
   // penalty: $ owed for each missed (non-Sunday, in-window) day with no check-in.
-  config: { start: todayStr(), weekBase: 20, weekStep: 5, penalty: 20 },
+  config: { start: todayStr(), penalty: 20 },
 });
+
+/* ---------- the year plan ----------
+ * A fixed, cumulative 52-week progression. Each exercise is "introduced" on a
+ * given week at a starting amount, then ramps as slowly as possible up to 100
+ * by week 52. Weeks 1-3 hold at the intro amounts:
+ *   Week 1: 20 push-ups
+ *   Week 2: + 10 sit-ups
+ *   Week 3: + 10 squats
+ * The daily prescription is cumulative — you do every exercise that's in play. */
+const EXERCISES = [
+  { key: "pushups", label: "Push-ups", intro: 1, base: 20 },
+  { key: "situps", label: "Sit-ups", intro: 2, base: 10 },
+  { key: "squats", label: "Squats", intro: 3, base: 10 },
+];
+const PLAN_TARGET = 100; // where every exercise lands by week 52
+const PLAN_HOLD_WEEK = 3; // intro amounts hold through this week, then ramp
+
+function planForWeek(week) {
+  const w = Math.max(1, Math.min(PLAN_WEEKS, Math.round(week)));
+  const out = {};
+  for (const ex of EXERCISES) {
+    if (w < ex.intro) {
+      out[ex.key] = 0;
+    } else if (w <= PLAN_HOLD_WEEK) {
+      out[ex.key] = ex.base;
+    } else {
+      // linear ramp base -> PLAN_TARGET across weeks PLAN_HOLD_WEEK..PLAN_WEEKS
+      const t = (w - PLAN_HOLD_WEEK) / (PLAN_WEEKS - PLAN_HOLD_WEEK);
+      out[ex.key] = Math.round(ex.base + (PLAN_TARGET - ex.base) * t);
+    }
+  }
+  return out;
+}
+
+/** Total reps prescribed per day for a given week (sum of all exercises). */
+function planTotal(week) {
+  const p = planForWeek(week);
+  return EXERCISES.reduce((s, ex) => s + p[ex.key], 0);
+}
+
+/** Short human string, e.g. "20 push-ups + 10 sit-ups + 10 squats". */
+function planText(week) {
+  const p = planForWeek(week);
+  return EXERCISES.filter((ex) => p[ex.key] > 0)
+    .map((ex) => `${p[ex.key]} ${ex.label.toLowerCase()}`)
+    .join(" + ");
+}
 
 // Roster, alphabetical. Seeded on first run (or into an untouched save).
 const SEED_PEOPLE = [
@@ -102,9 +149,9 @@ function challengeWeek(day = challengeDay()) {
   return Math.max(1, Math.ceil(day / 7));
 }
 
-/** Push-ups per person per day for a given challenge week. */
+/** Total reps prescribed per person per day for a given challenge week. */
 function dailyTarget(week = challengeWeek()) {
-  return state.config.weekBase + (Math.max(1, week) - 1) * state.config.weekStep;
+  return planTotal(week);
 }
 
 /** Per-person target that applied on a specific calendar date. */
@@ -120,15 +167,6 @@ function isQuit(personId) {
 /** Participants still in the challenge (not dropped out). */
 function activePeople() {
   return state.people.filter((p) => !p.quitDate);
-}
-
-/** Whose turn it is to design a given week's challenge — the active roster
- *  rotates in alphabetical order, wrapping around. */
-function weekCreator(weekNum) {
-  const sorted = activePeople().slice().sort((a, b) => a.name.localeCompare(b.name));
-  if (sorted.length === 0) return null;
-  const i = ((weekNum - 1) % sorted.length + sorted.length) % sorted.length;
-  return sorted[i].name;
 }
 
 /** Sunday is a rest day — no activity, cells blocked out. */
@@ -294,6 +332,7 @@ function render() {
   renderBanner();
   renderTeamStats();
   renderTodayProgress();
+  renderYearPlan();
   renderGrid();
   renderPenalties();
   renderLeaderboard();
@@ -308,15 +347,12 @@ function renderBanner() {
 
   if (day < 1) {
     const starts = 1 - day;
-    const firstCreator = weekCreator(1);
     el.className = "banner pre";
     el.innerHTML = `
       <div class="banner-top">Challenge starts in ${starts} day${starts === 1 ? "" : "s"}</div>
-      <div class="banner-mission">Week 1 mission &middot; <strong>${fmt(dailyTarget(1))}</strong> push-ups per day</div>
+      <div class="banner-mission">Week 1 &middot; <strong>${planText(1)}</strong> per day</div>
       <div class="year-bar"><span style="width:0%"></span></div>
-      <div class="banner-sub">Day 1 is ${state.config.start}${
-        firstCreator ? ` &middot; ${escapeHtml(firstCreator)} designs week 1` : ""
-      }</div>`;
+      <div class="banner-sub">Day 1 is ${state.config.start} &middot; goal: ${PLAN_TARGET} / ${PLAN_TARGET} / ${PLAN_TARGET} by week ${PLAN_WEEKS}</div>`;
     return;
   }
 
@@ -324,23 +360,29 @@ function renderBanner() {
     el.className = "banner done";
     el.innerHTML = `
       <div class="banner-top">&#127937; Challenge complete &middot; ${TOTAL_DAYS} / ${TOTAL_DAYS} days</div>
-      <div class="banner-mission"><strong>${fmt(repsFor(() => true))}</strong> total push-ups logged by the team</div>
+      <div class="banner-mission">You made it &mdash; <strong>${planText(PLAN_WEEKS)}</strong> a day</div>
       <div class="year-bar"><span style="width:100%"></span></div>`;
     return;
   }
 
-  const week = challengeWeek(day);
-  const target = dailyTarget(week);
+  const week = Math.min(PLAN_WEEKS, challengeWeek(day));
   const left = TOTAL_DAYS - day;
   const pct = (day / TOTAL_DAYS) * 100;
   const dayOfWeek = ((day - 1) % 7) + 1;
-  const thisCreator = weekCreator(week);
-  const nextCreator = weekCreator(week + 1);
 
-  const nextLine = nextCreator
-    ? `<strong>${escapeHtml(nextCreator)}</strong> designs next week's challenge`
-    : "add participants to set the rotation";
-  const thisLine = thisCreator ? ` &middot; this week by ${escapeHtml(thisCreator)}` : "";
+  // what next week adds on top of this week
+  const nowP = planForWeek(week);
+  const nextP = planForWeek(week + 1);
+  const adds = EXERCISES.map((ex) => {
+    const d = nextP[ex.key] - nowP[ex.key];
+    return d > 0 ? `+${d} ${ex.label.toLowerCase()}` : null;
+  }).filter(Boolean);
+  const nextLine =
+    week >= PLAN_WEEKS
+      ? `final week &middot; goal reached`
+      : adds.length
+      ? `next week: ${adds.join(", ")}`
+      : `next week: same as this week`;
 
   el.className = "banner";
   el.innerHTML = `
@@ -348,9 +390,9 @@ function renderBanner() {
       <span class="day-num">Day ${day}</span><span class="day-of"> of ${TOTAL_DAYS}</span>
       <span class="banner-count">${left} day${left === 1 ? "" : "s"} left</span>
     </div>
-    <div class="banner-mission">Week ${week} mission &middot; <strong>${fmt(target)}</strong> push-ups per person, per day</div>
+    <div class="banner-mission">Week ${week} &middot; <strong>${planText(week)}</strong> &mdash; every day</div>
     <div class="year-bar"><span style="width:${pct.toFixed(2)}%"></span></div>
-    <div class="banner-sub">Day ${dayOfWeek} of 7 this week &middot; ${nextLine}${thisLine}</div>`;
+    <div class="banner-sub">Day ${dayOfWeek} of 7 this week &middot; ${nextLine}</div>`;
 }
 
 function renderPeopleSelects() {
@@ -381,11 +423,17 @@ function renderPeopleSelects() {
 function renderTeamStats() {
   const active = activePeople();
   const dropped = state.people.length - active.length;
+  const start = state.config.start;
+  const today = todayStr();
 
-  document.getElementById("stat-team-total").textContent = fmt(repsFor(() => true));
+  const totalDone = state.people.reduce((s, p) => s + checkinCount(p.id, start, today), 0);
+  document.getElementById("stat-team-total").textContent = fmt(totalDone);
+
   document.getElementById("stat-participants").innerHTML =
     active.length + (dropped ? ` <span class="stat-sub">(${dropped} out)</span>` : "");
-  document.getElementById("stat-today-total").textContent = fmt(repsFor((e) => e.date === todayStr()));
+
+  const bestStreak = active.reduce((m, p) => Math.max(m, checkinStreak(p.id)), 0);
+  document.getElementById("stat-today-total").textContent = bestStreak ? bestStreak + "🔥" : "0";
 
   const checkedInEl = document.getElementById("stat-checkedin");
   if (active.length === 0) {
@@ -401,10 +449,7 @@ function renderTeamStats() {
 
 function renderTodayProgress() {
   const day = challengeDay();
-  const people = Math.max(1, activePeople().length);
-  const per = dailyTarget();
-  const goalToday = per * people;
-  const doneToday = repsFor((e) => e.date === todayStr());
+  const active = activePeople();
   const detail = document.getElementById("goal-detail");
   const fill = document.getElementById("progress-fill");
 
@@ -413,9 +458,42 @@ function renderTodayProgress() {
     fill.style.width = day < 1 ? "0%" : "100%";
     return;
   }
-  const pct = goalToday > 0 ? Math.min(100, (doneToday / goalToday) * 100) : 0;
-  detail.textContent = `${fmt(doneToday)} / ${fmt(goalToday)} reps today (${fmt(per)}/person × ${people})`;
+  if (isSunday(todayStr())) {
+    detail.textContent = "Sunday — rest day";
+    fill.style.width = "0%";
+    return;
+  }
+  const done = active.filter((p) => isChecked(p.id, todayStr())).length;
+  const total = Math.max(1, active.length);
+  const pct = (done / total) * 100;
+  detail.textContent = `${done} / ${active.length} checked in — today's workout: ${planText(
+    Math.min(PLAN_WEEKS, challengeWeek(day))
+  )}`;
   fill.style.width = pct.toFixed(1) + "%";
+}
+
+function renderYearPlan() {
+  const tbody = document.getElementById("year-plan-rows");
+  if (!tbody) return;
+  const day = challengeDay();
+  const curWeek = day >= 1 && day <= TOTAL_DAYS ? Math.min(PLAN_WEEKS, challengeWeek(day)) : 0;
+
+  let rows = "";
+  for (let w = 1; w <= PLAN_WEEKS; w++) {
+    const p = planForWeek(w);
+    const prev = w > 1 ? planForWeek(w - 1) : { pushups: 0, situps: 0, squats: 0 };
+    const cell = (ex) => {
+      const v = p[ex.key];
+      const up = v > prev[ex.key];
+      return `<td class="${v === 0 ? "muted" : ""}${up ? " bump" : ""}">${v || "—"}</td>`;
+    };
+    rows += `<tr class="${w === curWeek ? "cur" : ""}">
+      <td class="pt-name">Week ${w}${w === curWeek ? " &larr; now" : ""}</td>
+      ${EXERCISES.map(cell).join("")}
+      <td>${planTotal(w)}</td>
+    </tr>`;
+  }
+  tbody.innerHTML = rows;
 }
 
 /* Month being shown in the check-in grid (not persisted). */
@@ -627,47 +705,48 @@ function renderLeaderboard() {
     el.innerHTML = `<li class="empty">No participants yet.</li>`;
     return;
   }
-  const target = targetNow();
+  const start = state.config.start;
+  const today = todayStr();
   const rows = state.people
     .map((p) => ({
       id: p.id,
       name: p.name,
       quit: !!p.quitDate,
-      total: totalForPerson(p.id),
-      today: todayForPerson(p.id),
+      done: checkinCount(p.id, start, today), // workout days completed
+      missed: missedDaysFor(p.id),
       checkedToday: isChecked(p.id, todayStr()),
       streak: checkinStreak(p.id),
       outstanding: outstandingBy(p.id),
     }))
-    // active first, then by reps
+    // active first, then by days completed
     .sort(
       (a, b) =>
         Number(a.quit) - Number(b.quit) ||
-        b.total - a.total ||
+        b.done - a.done ||
+        a.missed - b.missed ||
         a.name.localeCompare(b.name)
     );
 
-  const max = Math.max(1, rows[0].total);
+  const max = Math.max(1, rows[0].done);
   const medals = ["🥇", "🥈", "🥉"];
   let activeRank = 0;
 
   el.innerHTML = rows
     .map((r) => {
-      const barPct = (r.total / max) * 100;
+      const barPct = (r.done / max) * 100;
       const rank = r.quit ? "&nbsp;" : (activeRank++, medals[activeRank - 1] || `${activeRank}.`);
       const parts = [];
       if (r.quit) parts.push("dropped out");
       if (r.checkedToday) parts.push("✓ done today");
-      if (target != null && !r.quit) parts.push(`${fmt(r.today)}/${fmt(target)} reps`);
-      else if (r.today) parts.push(`+${fmt(r.today)} reps`);
       if (r.streak > 1) parts.push(`${r.streak}🔥`);
+      if (r.missed > 0) parts.push(`${r.missed} missed`);
       if (r.outstanding > 0) parts.push(`owes ${money(r.outstanding)}`);
       return `
       <li class="lb-row${r.checkedToday ? " hit" : ""}${r.quit ? " quit" : ""}">
         <span class="lb-rank">${rank}</span>
         <span class="lb-name">${escapeHtml(r.name)}</span>
         <span class="lb-bar"><span style="width:${barPct}%"></span></span>
-        <span class="lb-total">${fmt(r.total)}</span>
+        <span class="lb-total">${fmt(r.done)}</span>
         <span class="lb-meta muted">${parts.join(" · ")}</span>
       </li>`;
     })
@@ -1046,28 +1125,13 @@ document.getElementById("month-today").addEventListener("click", () => {
 /* settings dialog */
 const goalDialog = document.getElementById("goal-dialog");
 const cfgStart = document.getElementById("cfg-start");
-const cfgBase = document.getElementById("cfg-base");
-const cfgStep = document.getElementById("cfg-step");
 const cfgPenalty = document.getElementById("cfg-penalty");
-const cfgPreview = document.getElementById("cfg-preview");
-
-function updateCfgPreview() {
-  const b = Math.max(1, Math.floor(Number(cfgBase.value)) || 0);
-  const s = Math.max(0, Math.floor(Number(cfgStep.value)) || 0);
-  const wk = (n) => fmt(b + (n - 1) * s);
-  cfgPreview.textContent = `Week 1: ${wk(1)}/day · Week 13: ${wk(13)}/day · Week 26: ${wk(26)}/day · Week 52: ${wk(52)}/day`;
-}
 
 document.getElementById("edit-goal").addEventListener("click", () => {
   cfgStart.value = state.config.start;
-  cfgBase.value = state.config.weekBase;
-  cfgStep.value = state.config.weekStep;
   cfgPenalty.value = penaltyPerDay();
-  updateCfgPreview();
   goalDialog.showModal();
 });
-cfgBase.addEventListener("input", updateCfgPreview);
-cfgStep.addEventListener("input", updateCfgPreview);
 
 goalDialog.querySelector("form").addEventListener("submit", (e) => {
   // The form uses method="dialog"; it still closes itself after this handler.
@@ -1077,8 +1141,6 @@ goalDialog.querySelector("form").addEventListener("submit", (e) => {
   const newStart = cfgStart.value || todayStr();
   state.config = {
     start: newStart,
-    weekBase: Math.max(1, Math.floor(Number(cfgBase.value)) || 1),
-    weekStep: Math.max(0, Math.floor(Number(cfgStep.value)) || 0),
     penalty: Math.max(0, Math.floor(Number(cfgPenalty.value)) || 0),
   };
   // Founding members (joined on the old Day 1) follow the start date when it moves.

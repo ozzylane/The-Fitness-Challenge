@@ -419,6 +419,18 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
 .ptable tr.settled td.pt-out { color: var(--good); }
 #penalty-summary .out { color: var(--accent); }
 
+/* full-year plan */
+.plan-scroll { max-height: 420px; }
+.plantable { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+.plantable th, .plantable td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.plantable thead th { position: sticky; top: 0; background: var(--card-2); color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; z-index: 1; }
+.plantable th:first-child, .plantable td.pt-name { text-align: left; }
+.plantable td.pt-name { font-weight: 600; }
+.plantable td.muted { color: var(--muted); }
+.plantable td.bump { color: var(--accent-2); font-weight: 700; }
+.plantable tr.cur td { background: rgba(255, 176, 58, 0.14); }
+.plantable tr.cur td.pt-name { color: var(--accent-2); }
+
 .payup-block { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 14px; }
 .payup-block h3 { margin: 0 0 4px; font-size: 0.95rem; }
 .payup-body { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
