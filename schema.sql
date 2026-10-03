@@ -56,7 +56,12 @@ drop policy if exists "anon full payments"     on public.payments;
 
 create policy "anon full config"       on public.config       for all to anon using (true) with check (true);
 create policy "anon full participants" on public.participants for all to anon using (true) with check (true);
-create policy "anon full checkins"     on public.checkins     for all to anon using (true) with check (true);
+-- Check-ins are final: the site can read and add them but never remove or change
+-- one (people were unchecking each other). Fix mistakes from the dashboard.
+drop policy if exists "anon read checkins" on public.checkins;
+drop policy if exists "anon add checkins"  on public.checkins;
+create policy "anon read checkins" on public.checkins for select to anon using (true);
+create policy "anon add checkins"  on public.checkins for insert to anon with check (true);
 create policy "anon full payments"     on public.payments     for all to anon using (true) with check (true);
 
 ------------------------------------------------------------------------

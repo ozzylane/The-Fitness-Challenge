@@ -335,18 +335,21 @@ function setCheckin(personId, dateStr, val) {
 }
 
 function toggleCheckin(personId, dateStr) {
-  const want = !isChecked(personId, dateStr);
-  setCheckin(personId, dateStr, want);
+  // A check-in is final: nobody can uncheck it from the app (people were
+  // unchecking each other). Mistakes get fixed by the admin in the database.
+  if (isChecked(personId, dateStr)) {
+    alert(`${personName(personId)} is checked in for ${dateStr}. Check-ins are locked once made.`);
+    return;
+  }
+  setCheckin(personId, dateStr, true);
   save();
   render();
   if (hasBackend()) {
     push(
-      want
-        ? SB.from("checkins").upsert(
-            { participant_id: personId, day: dateStr },
-            { onConflict: "participant_id,day", ignoreDuplicates: true }
-          )
-        : SB.from("checkins").delete().eq("participant_id", personId).eq("day", dateStr)
+      SB.from("checkins").upsert(
+        { participant_id: personId, day: dateStr },
+        { onConflict: "participant_id,day", ignoreDuplicates: true }
+      )
     );
   }
 }
