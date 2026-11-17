@@ -114,15 +114,31 @@ function initSupabase() {
   }
 }
 
+/** Fetch every row of a table. PostgREST caps one response at 1000 rows, so
+ *  anything bigger (check-ins passed that in Nov 2026) silently lost its
+ *  newest rows unless we page through. */
+async function selectAll(table, cols) {
+  const PAGE = 1000;
+  const rows = [];
+  for (let from = 0; ; from += PAGE) {
+    const r = await SB.from(table).select(cols).order("id").range(from, from + PAGE - 1);
+    if (r.error) throw r.error;
+    const batch = r.data || [];
+    rows.push(...batch);
+    if (batch.length < PAGE) break;
+  }
+  return rows;
+}
+
 /** Pull the whole shared state from Supabase into our in-memory shape. */
 async function backendLoad() {
-  const [cfg, ppl, chk, pay] = await Promise.all([
+  const [cfg, ppl, chkRows, payRows] = await Promise.all([
     SB.from("config").select("*").eq("id", 1).maybeSingle(),
     SB.from("participants").select("id,name,since,quit_date"),
-    SB.from("checkins").select("participant_id,day"),
-    SB.from("payments").select("id,participant_id,amount,day,note"),
+    selectAll("checkins", "participant_id,day"),
+    selectAll("payments", "id,participant_id,amount,day,note"),
   ]);
-  for (const r of [cfg, ppl, chk, pay]) if (r.error) throw r.error;
+  for (const r of [cfg, ppl]) if (r.error) throw r.error;
 
   const config = cfg.data
     ? { start: cfg.data.start_date, penalty: cfg.data.penalty }
@@ -135,12 +151,12 @@ async function backendLoad() {
   });
 
   const checkins = {};
-  for (const c of chk.data || []) {
+  for (const c of chkRows) {
     if (!checkins[c.participant_id]) checkins[c.participant_id] = {};
     checkins[c.participant_id][c.day] = true;
   }
 
-  const payments = (pay.data || []).map((p) => ({
+  const payments = payRows.map((p) => ({
     id: p.id,
     personId: p.participant_id,
     amount: p.amount,
