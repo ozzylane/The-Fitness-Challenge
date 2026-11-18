@@ -1,5 +1,6 @@
-/* The Fitness Challenge — local, 365-day progressive group tracker.
- * State lives in localStorage under STORAGE_KEY. No network calls. */
+/* The Fitness Challenge — 365-day progressive group tracker.
+ * With supabase-config.js filled in, state lives in a shared Supabase DB and
+ * localStorage is only a cache; otherwise it runs local-only. */
 
 const STORAGE_KEY = "pushup-challenge:v1";
 const TOTAL_DAYS = 365;
@@ -190,9 +191,14 @@ function subscribeRealtime() {
   SB.channel("challenge")
     .on("postgres_changes", { event: "*", schema: "public" }, scheduleRefresh)
     .subscribe((status) => {
-      if (status === "SUBSCRIBED") setSyncStatus("synced");
-      else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT")
+      if (status === "SUBSCRIBED") {
+        setSyncStatus("synced");
+        // Fires on every (re)join. Realtime doesn't replay what happened while
+        // a sleeping phone was disconnected, so pull the board fresh.
+        scheduleRefresh();
+      } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
         setSyncStatus("offline");
+      }
     });
 }
 
@@ -802,7 +808,6 @@ function renderPenalties() {
             p.note ? " · " + escapeHtml(p.note) : ""
           }</span>
           <span class="h-reps">${money(p.amount)}</span>
-          <button class="h-del" data-payment="${p.id}" title="Delete this payment">✕</button>
         </li>`
         )
         .join("")
@@ -877,13 +882,13 @@ function renderPeopleList() {
       const label = out
         ? `${escapeHtml(p.name)} <span class="dropped">DROPPED OUT · ${p.quitDate}</span>`
         : escapeHtml(p.name);
+      // No remove button: deleting a person takes their whole history with them,
+      // and the shared DB refuses it anyway. Leaving is the quit flow below.
       const rightBtn = out
         ? `<button class="h-del readmit" data-readmit="${p.id}" title="Re-admit ${escapeHtml(
             p.name
           )}">↩</button>`
-        : `<button class="h-del" data-person="${p.id}" title="Remove ${escapeHtml(
-            p.name
-          )}">✕</button>`;
+        : "";
       return `
       <li class="${out ? "quit" : ""}">
         <span class="h-date">${label}</span>
@@ -937,19 +942,6 @@ function addPerson(name) {
     save();
     render();
   }
-}
-
-function removePerson(id) {
-  const p = state.people.find((x) => x.id === id);
-  if (!p) return;
-  if (!confirm(`Remove ${p.name} and everything they've logged? This can't be undone.`)) return;
-  state.people = state.people.filter((x) => x.id !== id);
-  state.entries = state.entries.filter((e) => e.personId !== id);
-  state.payments = state.payments.filter((pm) => pm.personId !== id);
-  delete state.checkins[id];
-  save();
-  render();
-  if (hasBackend()) push(SB.from("participants").delete().eq("id", id)); // FK cascades
 }
 
 function quitPerson(personId) {
@@ -1007,12 +999,8 @@ function addPayment(personId, amount, note) {
   }
 }
 
-function removePayment(id) {
-  state.payments = state.payments.filter((p) => p.id !== id);
-  save();
-  render();
-  if (hasBackend()) push(SB.from("payments").delete().eq("id", id));
-}
+// Payments are never deleted (the shared DB refuses it — a stray tap on a phone
+// once wiped a real $40). A wrong entry is corrected with a negative amount.
 
 function exportJson() {
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
@@ -1067,8 +1055,6 @@ document.getElementById("add-person-form").addEventListener("submit", (e) => {
 });
 
 document.getElementById("people-list").addEventListener("click", (e) => {
-  const rm = e.target.closest("button[data-person]");
-  if (rm) removePerson(rm.dataset.person);
   const re = e.target.closest("button[data-readmit]");
   if (re) readmitPerson(re.dataset.readmit);
 });
@@ -1111,10 +1097,6 @@ document.getElementById("pay-form").addEventListener("submit", (e) => {
   document.getElementById("pay-amount").value = "";
   document.getElementById("pay-note").value = "";
 });
-document.getElementById("payments-list").addEventListener("click", (e) => {
-  const btn = e.target.closest("button[data-payment]");
-  if (btn) removePayment(btn.dataset.payment);
-});
 
 /* check-in grid */
 function handleGridActivate(e) {
@@ -1142,6 +1124,10 @@ const cfgStart = document.getElementById("cfg-start");
 const cfgPenalty = document.getElementById("cfg-penalty");
 
 document.getElementById("edit-goal").addEventListener("click", () => {
+  if (hasBackend()) {
+    alert("The start date and penalty are managed by the admin in the Supabase dashboard.");
+    return;
+  }
   cfgStart.value = state.config.start;
   cfgPenalty.value = penaltyPerDay();
   goalDialog.showModal();
@@ -1234,12 +1220,26 @@ setInterval(() => {
   }
 }, 30000);
 
+/* Phones drop the live connection when they sleep. Re-pull the board whenever
+   the page comes back into view so nobody acts on a stale copy. */
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && hasBackend()) scheduleRefresh();
+});
+window.addEventListener("pageshow", () => {
+  if (hasBackend()) scheduleRefresh();
+});
+
 render();
 
 /* Connect to the shared board (if configured), then keep it live. */
 SB = initSupabase();
 if (hasBackend()) {
   setSyncStatus("connecting");
+  // Admin-only on the shared board — done from the Supabase dashboard instead.
+  for (const id of ["edit-goal", "import-btn", "reset-btn"]) {
+    const b = document.getElementById(id);
+    if (b) b.style.display = "none";
+  }
   backendRefresh().then(subscribeRealtime);
 } else {
   setSyncStatus("local");

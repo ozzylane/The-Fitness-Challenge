@@ -100,6 +100,10 @@
         <input id="pay-note" type="text" maxlength="40" placeholder="Note (optional)" />
         <button class="btn btn-primary" type="submit">Record payment</button>
       </form>
+      <p class="muted small">
+        Entered something wrong? Record a negative amount with a note to correct it &mdash;
+        payments can't be deleted.
+      </p>
       <ul id="payments-list" class="history"></ul>
 
       <div class="payup-block">
@@ -151,7 +155,7 @@
 
     <section class="card data-card">
       <h2>Data</h2>
-      <p class="muted small">Everything is stored in this browser only. Use export/import to move the challenge between devices.</p>
+      <p class="muted small">Everyone sees the same shared board, live. Export downloads a JSON snapshot of it.</p>
       <div class="data-actions">
         <button id="export-btn" class="btn btn-ghost" type="button">Export JSON</button>
         <button id="import-btn" class="btn btn-ghost" type="button">Import JSON</button>
@@ -175,7 +179,7 @@
       </div>
     </section>
 
-    <footer class="footer muted small">The Fitness Challenge &middot; 365-day local browser app</footer>
+    <footer class="footer muted small">The Fitness Challenge &middot; 365-day group tracker</footer>
   </div>
 
   <dialog id="goal-dialog">
@@ -199,6 +203,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
   <script src="supabase-config.js?v=8"></script>
-  <script src="app.js?v=9"></script>
+  <script src="app.js?v=10"></script>
 </body>
 </html>

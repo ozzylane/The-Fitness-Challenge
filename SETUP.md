@@ -87,16 +87,15 @@ their name and taps their day. Sundays are green rest days; miss a weekday and
 
 ## Notes
 
-- **Changing the roster / start date / penalty:** do it in the app (Settings, or
-  the Participants card) — it writes straight to Supabase for everyone. Or edit
-  the rows in the Supabase Table Editor.
+- **In the app:** add people, record payments, quit / re-admit, check in. These
+  write straight to Supabase for everyone.
+- **Admin only (Supabase Table Editor):** start date, penalty, removing someone,
+  deleting or fixing a check-in or payment. The site's key can't delete or edit
+  those, so a stray tap on a phone can't wipe anything. Wrong payment? Record a
+  negative amount with a note.
 - **Resetting:** disabled in the app when shared (so nobody nukes it by
   accident). To wipe, truncate the tables in the Supabase SQL editor and re-run
   the seed section of `schema.sql`.
-- **Locking down `config`** (so only you can move the start date): in Supabase
-  SQL editor run
-  `drop policy "anon full config" on public.config;`
-  and change that one row from the Table Editor when needed.
 - **Backups:** the **Export JSON** button still works and dumps the current
   shared state to a file.
 - **Costs:** Supabase free tier + GitHub Pages = $0 for a group this size.
